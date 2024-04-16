@@ -1,182 +1,17 @@
+use crate::message_parser::TypeHandler;
+
+use self::message_parser::extract_mpv_response_data;
+use self::message_parser::json_array_to_playlist;
+use self::message_parser::json_array_to_vec;
+use self::message_parser::json_map_to_hashmap;
+
 use super::*;
 use log::{debug, warn};
 use serde_json::json;
-use std::collections::HashMap;
-use std::io::prelude::*;
+use serde_json::Value;
+use std::io::BufRead;
 use std::io::BufReader;
-use std::iter::Iterator;
-
-#[derive(Debug, Clone)]
-pub struct PlaylistEntry {
-    pub id: usize,
-    pub filename: String,
-    pub title: String,
-    pub current: bool,
-}
-
-pub trait TypeHandler: Sized {
-    fn get_value(value: Value) -> Result<Self, Error>;
-    fn as_string(&self) -> String;
-}
-
-impl TypeHandler for String {
-    fn get_value(value: Value) -> Result<String, Error> {
-        if let Value::Object(map) = value {
-            if let Value::String(ref error) = map["error"] {
-                if error == "success" && map.contains_key("data") {
-                    if let Value::String(ref s) = map["data"] {
-                        Ok(s.to_string())
-                    } else {
-                        Err(Error(ErrorCode::ValueDoesNotContainString))
-                    }
-                } else {
-                    Err(Error(ErrorCode::MpvError(error.to_string())))
-                }
-            } else {
-                Err(Error(ErrorCode::UnexpectedValue))
-            }
-        } else {
-            Err(Error(ErrorCode::UnexpectedValue))
-        }
-    }
-
-    fn as_string(&self) -> String {
-        self.to_string()
-    }
-}
-
-impl TypeHandler for bool {
-    fn get_value(value: Value) -> Result<bool, Error> {
-        if let Value::Object(map) = value {
-            if let Value::String(ref error) = map["error"] {
-                if error == "success" && map.contains_key("data") {
-                    if let Value::Bool(ref b) = map["data"] {
-                        Ok(*b)
-                    } else {
-                        Err(Error(ErrorCode::ValueDoesNotContainBool))
-                    }
-                } else {
-                    Err(Error(ErrorCode::MpvError(error.to_string())))
-                }
-            } else {
-                Err(Error(ErrorCode::UnexpectedValue))
-            }
-        } else {
-            Err(Error(ErrorCode::UnexpectedValue))
-        }
-    }
-    fn as_string(&self) -> String {
-        if *self {
-            "true".to_string()
-        } else {
-            "false".to_string()
-        }
-    }
-}
-
-impl TypeHandler for f64 {
-    fn get_value(value: Value) -> Result<f64, Error> {
-        if let Value::Object(map) = value {
-            if let Value::String(ref error) = map["error"] {
-                if error == "success" && map.contains_key("data") {
-                    if let Value::Number(ref num) = map["data"] {
-                        Ok(num.as_f64().unwrap())
-                    } else {
-                        Err(Error(ErrorCode::ValueDoesNotContainF64))
-                    }
-                } else {
-                    Err(Error(ErrorCode::MpvError(error.to_string())))
-                }
-            } else {
-                Err(Error(ErrorCode::UnexpectedValue))
-            }
-        } else {
-            Err(Error(ErrorCode::UnexpectedValue))
-        }
-    }
-
-    fn as_string(&self) -> String {
-        self.to_string()
-    }
-}
-
-impl TypeHandler for usize {
-    fn get_value(value: Value) -> Result<usize, Error> {
-        if let Value::Object(map) = value {
-            if let Value::String(ref error) = map["error"] {
-                if error == "success" && map.contains_key("data") {
-                    if let Value::Number(ref num) = map["data"] {
-                        Ok(num.as_u64().unwrap() as usize)
-                    } else {
-                        Err(Error(ErrorCode::ValueDoesNotContainUsize))
-                    }
-                } else {
-                    Err(Error(ErrorCode::MpvError(error.to_string())))
-                }
-            } else {
-                Err(Error(ErrorCode::UnexpectedValue))
-            }
-        } else {
-            Err(Error(ErrorCode::UnexpectedValue))
-        }
-    }
-
-    fn as_string(&self) -> String {
-        self.to_string()
-    }
-}
-
-impl TypeHandler for HashMap<String, MpvDataType> {
-    fn get_value(value: Value) -> Result<HashMap<String, MpvDataType>, Error> {
-        if let Value::Object(map) = value {
-            if let Value::String(ref error) = map["error"] {
-                if error == "success" && map.contains_key("data") {
-                    if let Value::Object(ref inner_map) = map["data"] {
-                        Ok(json_map_to_hashmap(inner_map))
-                    } else {
-                        Err(Error(ErrorCode::ValueDoesNotContainHashMap))
-                    }
-                } else {
-                    Err(Error(ErrorCode::MpvError(error.to_string())))
-                }
-            } else {
-                Err(Error(ErrorCode::UnexpectedValue))
-            }
-        } else {
-            Err(Error(ErrorCode::UnexpectedValue))
-        }
-    }
-
-    fn as_string(&self) -> String {
-        format!("{:?}", self)
-    }
-}
-
-impl TypeHandler for Vec<PlaylistEntry> {
-    fn get_value(value: Value) -> Result<Vec<PlaylistEntry>, Error> {
-        if let Value::Object(map) = value {
-            if let Value::String(ref error) = map["error"] {
-                if error == "success" && map.contains_key("data") {
-                    if let Value::Array(ref playlist_vec) = map["data"] {
-                        Ok(json_array_to_playlist(playlist_vec))
-                    } else {
-                        Err(Error(ErrorCode::ValueDoesNotContainPlaylist))
-                    }
-                } else {
-                    Err(Error(ErrorCode::MpvError(error.to_string())))
-                }
-            } else {
-                Err(Error(ErrorCode::UnexpectedValue))
-            }
-        } else {
-            Err(Error(ErrorCode::UnexpectedValue))
-        }
-    }
-
-    fn as_string(&self) -> String {
-        format!("{:?}", self)
-    }
-}
+use std::io::Write;
 
 pub fn get_mpv_property<T: TypeHandler>(instance: &Mpv, property: &str) -> Result<T, Error> {
     let ipc_string = json!({"command": ["get_property", property]});
@@ -191,23 +26,7 @@ pub fn get_mpv_property_string(instance: &Mpv, property: &str) -> Result<String,
     let val = serde_json::from_str::<Value>(&send_command_sync(instance, ipc_string))
         .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))?;
 
-    let map = if let Value::Object(map) = val {
-        Ok(map)
-    } else {
-        Err(Error(ErrorCode::UnexpectedValue))
-    }?;
-
-    let error = if let Value::String(ref error) = map["error"] {
-        Ok(error)
-    } else {
-        Err(Error(ErrorCode::UnexpectedValue))
-    }?;
-
-    let data = if error == "success" {
-        Ok(&map["data"])
-    } else {
-        Err(Error(ErrorCode::MpvError(error.to_string())))
-    }?;
+    let data = extract_mpv_response_data(&val)?;
 
     match data {
         Value::Bool(b) => Ok(b.to_string()),
@@ -219,15 +38,19 @@ pub fn get_mpv_property_string(instance: &Mpv, property: &str) -> Result<String,
     }
 }
 
+fn validate_mpv_response(response: &str) -> Result<(), Error> {
+    serde_json::from_str::<Value>(response)
+        .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))
+        .and_then(|value| extract_mpv_response_data(&value).map(|_| ()))
+}
+
 pub fn set_mpv_property(instance: &Mpv, property: &str, value: Value) -> Result<(), Error> {
     let ipc_string = json!({
         "command": ["set_property", property, value]
     });
 
-    match serde_json::from_str::<Value>(&send_command_sync(instance, ipc_string)) {
-        Ok(_) => Ok(()),
-        Err(why) => Err(Error(ErrorCode::JsonParseError(why.to_string()))),
-    }
+    let response = &send_command_sync(instance, ipc_string);
+    validate_mpv_response(response)
 }
 
 pub fn run_mpv_command(instance: &Mpv, command: &str, args: &[&str]) -> Result<(), Error> {
@@ -239,60 +62,27 @@ pub fn run_mpv_command(instance: &Mpv, command: &str, args: &[&str]) -> Result<(
             args_array.push(json!(arg));
         }
     }
-    match serde_json::from_str::<Value>(&send_command_sync(instance, ipc_string)) {
-        Ok(feedback) => {
-            if let Value::String(ref error) = feedback["error"] {
-                if error == "success" {
-                    Ok(())
-                } else {
-                    Err(Error(ErrorCode::MpvError(error.to_string())))
-                }
-            } else {
-                Err(Error(ErrorCode::UnexpectedResult))
-            }
-        }
-        Err(why) => Err(Error(ErrorCode::JsonParseError(why.to_string()))),
-    }
+
+    let response = &send_command_sync(instance, ipc_string);
+    validate_mpv_response(response)
 }
 
 pub fn observe_mpv_property(instance: &Mpv, id: &isize, property: &str) -> Result<(), Error> {
     let ipc_string = json!({
         "command": ["observe_property", id, property]
     });
-    match serde_json::from_str::<Value>(&send_command_sync(instance, ipc_string)) {
-        Ok(feedback) => {
-            if let Value::String(ref error) = feedback["error"] {
-                if error == "success" {
-                    Ok(())
-                } else {
-                    Err(Error(ErrorCode::MpvError(error.to_string())))
-                }
-            } else {
-                Err(Error(ErrorCode::UnexpectedResult))
-            }
-        }
-        Err(why) => Err(Error(ErrorCode::JsonParseError(why.to_string()))),
-    }
+
+    let response = &send_command_sync(instance, ipc_string);
+    validate_mpv_response(response)
 }
 
 pub fn unobserve_mpv_property(instance: &Mpv, id: &isize) -> Result<(), Error> {
     let ipc_string = json!({
         "command": ["unobserve_property", id]
     });
-    match serde_json::from_str::<Value>(&send_command_sync(instance, ipc_string)) {
-        Ok(feedback) => {
-            if let Value::String(ref error) = feedback["error"] {
-                if error == "success" {
-                    Ok(())
-                } else {
-                    Err(Error(ErrorCode::MpvError(error.to_string())))
-                }
-            } else {
-                Err(Error(ErrorCode::UnexpectedResult))
-            }
-        }
-        Err(why) => Err(Error(ErrorCode::JsonParseError(why.to_string()))),
-    }
+
+    let response = &send_command_sync(instance, ipc_string);
+    validate_mpv_response(response)
 }
 
 fn try_convert_property(name: &str, id: usize, data: MpvDataType) -> Event {
@@ -455,129 +245,4 @@ fn send_command_sync(instance: &Mpv, command: Value) -> String {
             response
         }
     }
-}
-
-fn json_map_to_hashmap(map: &serde_json::map::Map<String, Value>) -> HashMap<String, MpvDataType> {
-    let mut output_map: HashMap<String, MpvDataType> = HashMap::new();
-    for (ref key, ref value) in map.iter() {
-        match **value {
-            Value::Array(ref array) => {
-                output_map.insert(
-                    key.to_string(),
-                    MpvDataType::Array(json_array_to_vec(array)),
-                );
-            }
-            Value::Bool(ref b) => {
-                output_map.insert(key.to_string(), MpvDataType::Bool(*b));
-            }
-            Value::Number(ref n) => {
-                if n.is_u64() {
-                    output_map.insert(
-                        key.to_string(),
-                        MpvDataType::Usize(n.as_u64().unwrap() as usize),
-                    );
-                } else if n.is_f64() {
-                    output_map.insert(key.to_string(), MpvDataType::Double(n.as_f64().unwrap()));
-                } else {
-                    panic!("unimplemented number");
-                }
-            }
-            Value::String(ref s) => {
-                output_map.insert(key.to_string(), MpvDataType::String(s.to_string()));
-            }
-            Value::Object(ref m) => {
-                output_map.insert(
-                    key.to_string(),
-                    MpvDataType::HashMap(json_map_to_hashmap(m)),
-                );
-            }
-            Value::Null => {
-                unimplemented!();
-            }
-        }
-    }
-    output_map
-}
-
-fn json_array_to_vec(array: &Vec<Value>) -> Vec<MpvDataType> {
-    let mut output: Vec<MpvDataType> = Vec::new();
-    if array.len() > 0 {
-        match array[0] {
-            Value::Array(_) => {
-                for entry in array {
-                    if let Value::Array(ref a) = *entry {
-                        output.push(MpvDataType::Array(json_array_to_vec(a)));
-                    }
-                }
-            }
-
-            Value::Bool(_) => {
-                for entry in array {
-                    if let Value::Bool(ref b) = *entry {
-                        output.push(MpvDataType::Bool(*b));
-                    }
-                }
-            }
-
-            Value::Number(_) => {
-                for entry in array {
-                    if let Value::Number(ref n) = *entry {
-                        if n.is_u64() {
-                            output.push(MpvDataType::Usize(n.as_u64().unwrap() as usize));
-                        } else if n.is_f64() {
-                            output.push(MpvDataType::Double(n.as_f64().unwrap()));
-                        } else {
-                            panic!("unimplemented number");
-                        }
-                    }
-                }
-            }
-
-            Value::Object(_) => {
-                for entry in array {
-                    if let Value::Object(ref map) = *entry {
-                        output.push(MpvDataType::HashMap(json_map_to_hashmap(map)));
-                    }
-                }
-            }
-
-            Value::String(_) => {
-                for entry in array {
-                    if let Value::String(ref s) = *entry {
-                        output.push(MpvDataType::String(s.to_string()));
-                    }
-                }
-            }
-
-            Value::Null => {
-                unimplemented!();
-            }
-        }
-    }
-    output
-}
-
-fn json_array_to_playlist(array: &Vec<Value>) -> Vec<PlaylistEntry> {
-    let mut output: Vec<PlaylistEntry> = Vec::new();
-    for (id, entry) in array.iter().enumerate() {
-        let mut filename: String = String::new();
-        let mut title: String = String::new();
-        let mut current: bool = false;
-        if let Value::String(ref f) = entry["filename"] {
-            filename = f.to_string();
-        }
-        if let Value::String(ref t) = entry["title"] {
-            title = t.to_string();
-        }
-        if let Value::Bool(ref b) = entry["current"] {
-            current = *b;
-        }
-        output.push(PlaylistEntry {
-            id,
-            filename,
-            title,
-            current,
-        });
-    }
-    output
 }
