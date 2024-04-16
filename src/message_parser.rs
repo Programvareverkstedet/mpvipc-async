@@ -9,25 +9,11 @@ pub trait TypeHandler: Sized {
     fn as_string(&self) -> String;
 }
 
-pub(crate) fn extract_mpv_response_data(value: &Value) -> Result<&Value, Error> {
-    value
-        .as_object()
-        .map(|o| (o.get("error").and_then(|e| e.as_str()), o.get("data")))
-        .ok_or(Error(ErrorCode::UnexpectedValue))
-        .and_then(|(error, data)| match error {
-            Some("success") => data.ok_or(Error(ErrorCode::UnexpectedValue)),
-            Some(e) => Err(Error(ErrorCode::MpvError(e.to_string()))),
-            None => Err(Error(ErrorCode::UnexpectedValue)),
-        })
-}
-
 impl TypeHandler for String {
     fn get_value(value: Value) -> Result<String, Error> {
-        extract_mpv_response_data(&value)
-            .and_then(|d| {
-                d.as_str()
-                    .ok_or(Error(ErrorCode::ValueDoesNotContainString))
-            })
+        value
+            .as_str()
+            .ok_or(Error(ErrorCode::ValueDoesNotContainString))
             .map(|s| s.to_string())
     }
 
@@ -38,8 +24,7 @@ impl TypeHandler for String {
 
 impl TypeHandler for bool {
     fn get_value(value: Value) -> Result<bool, Error> {
-        extract_mpv_response_data(&value)
-            .and_then(|d| d.as_bool().ok_or(Error(ErrorCode::ValueDoesNotContainBool)))
+            value.as_bool().ok_or(Error(ErrorCode::ValueDoesNotContainBool))
     }
 
     fn as_string(&self) -> String {
@@ -53,8 +38,7 @@ impl TypeHandler for bool {
 
 impl TypeHandler for f64 {
     fn get_value(value: Value) -> Result<f64, Error> {
-        extract_mpv_response_data(&value)
-            .and_then(|d| d.as_f64().ok_or(Error(ErrorCode::ValueDoesNotContainF64)))
+            value.as_f64().ok_or(Error(ErrorCode::ValueDoesNotContainF64))
     }
 
     fn as_string(&self) -> String {
@@ -64,9 +48,9 @@ impl TypeHandler for f64 {
 
 impl TypeHandler for usize {
     fn get_value(value: Value) -> Result<usize, Error> {
-        extract_mpv_response_data(&value)
-            .and_then(|d| d.as_u64().ok_or(Error(ErrorCode::ValueDoesNotContainUsize)))
+            value.as_u64()
             .map(|u| u as usize)
+.ok_or(Error(ErrorCode::ValueDoesNotContainUsize))
     }
 
     fn as_string(&self) -> String {
@@ -76,11 +60,8 @@ impl TypeHandler for usize {
 
 impl TypeHandler for HashMap<String, MpvDataType> {
     fn get_value(value: Value) -> Result<HashMap<String, MpvDataType>, Error> {
-        extract_mpv_response_data(&value)
-            .and_then(|d| {
-                d.as_object()
+                value.as_object()
                     .ok_or(Error(ErrorCode::ValueDoesNotContainHashMap))
-            })
             .map(json_map_to_hashmap)
     }
 
@@ -91,11 +72,8 @@ impl TypeHandler for HashMap<String, MpvDataType> {
 
 impl TypeHandler for Vec<PlaylistEntry> {
     fn get_value(value: Value) -> Result<Vec<PlaylistEntry>, Error> {
-        extract_mpv_response_data(&value)
-            .and_then(|d| {
-                d.as_array()
+                value.as_array()
                     .ok_or(Error(ErrorCode::ValueDoesNotContainPlaylist))
-            })
             .map(json_array_to_playlist)
     }
 

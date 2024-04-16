@@ -1,248 +1,162 @@
-use crate::message_parser::TypeHandler;
-
-use self::message_parser::extract_mpv_response_data;
-use self::message_parser::json_array_to_playlist;
-use self::message_parser::json_array_to_vec;
-use self::message_parser::json_map_to_hashmap;
-
 use super::*;
-use log::{debug, warn};
-use serde_json::json;
-use serde_json::Value;
-use std::io::BufRead;
-use std::io::BufReader;
-use std::io::Write;
+use futures::{SinkExt, StreamExt};
+use serde_json::{json, Value};
+use std::mem;
+use tokio::net::UnixStream;
+use tokio::sync::mpsc::Receiver;
+use tokio::sync::{oneshot, Mutex};
+use tokio_util::codec::{Framed, LinesCodec};
 
-pub fn get_mpv_property<T: TypeHandler>(instance: &Mpv, property: &str) -> Result<T, Error> {
-    let ipc_string = json!({"command": ["get_property", property]});
-    match serde_json::from_str::<Value>(&send_command_sync(instance, ipc_string)) {
-        Ok(val) => T::get_value(val),
-        Err(why) => Err(Error(ErrorCode::JsonParseError(why.to_string()))),
-    }
+pub(crate) struct MpvIpc {
+    socket: Framed<UnixStream, LinesCodec>,
+    command_channel: Receiver<(MpvIpcCommand, oneshot::Sender<MpvIpcResponse>)>,
+    socket_lock: Mutex<()>,
 }
 
-pub fn get_mpv_property_string(instance: &Mpv, property: &str) -> Result<String, Error> {
-    let ipc_string = json!({"command": ["get_property", property]});
-    let val = serde_json::from_str::<Value>(&send_command_sync(instance, ipc_string))
-        .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))?;
-
-    let data = extract_mpv_response_data(&val)?;
-
-    match data {
-        Value::Bool(b) => Ok(b.to_string()),
-        Value::Number(ref n) => Ok(n.to_string()),
-        Value::String(ref s) => Ok(s.to_string()),
-        Value::Array(ref array) => Ok(format!("{:?}", array)),
-        Value::Object(ref map) => Ok(format!("{:?}", map)),
-        Value::Null => Err(Error(ErrorCode::MissingValue)),
-    }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum MpvIpcCommand {
+    Command(Vec<String>),
+    GetProperty(String),
+    SetProperty(String, Value),
+    ObserveProperty(isize, String),
+    UnobserveProperty(isize),
+    Exit,
 }
 
-fn validate_mpv_response(response: &str) -> Result<(), Error> {
-    serde_json::from_str::<Value>(response)
-        .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))
-        .and_then(|value| extract_mpv_response_data(&value).map(|_| ()))
-}
+#[derive(Debug, Clone)]
+pub(crate) struct MpvIpcResponse(pub(crate) Result<Option<Value>, Error>);
 
-pub fn set_mpv_property(instance: &Mpv, property: &str, value: Value) -> Result<(), Error> {
-    let ipc_string = json!({
-        "command": ["set_property", property, value]
-    });
-
-    let response = &send_command_sync(instance, ipc_string);
-    validate_mpv_response(response)
-}
-
-pub fn run_mpv_command(instance: &Mpv, command: &str, args: &[&str]) -> Result<(), Error> {
-    let mut ipc_string = json!({
-        "command": [command]
-    });
-    if let Value::Array(args_array) = &mut ipc_string["command"] {
-        for arg in args {
-            args_array.push(json!(arg));
+impl MpvIpc {
+    pub(crate) fn new(
+        socket: UnixStream,
+        command_channel: Receiver<(MpvIpcCommand, oneshot::Sender<MpvIpcResponse>)>,
+    ) -> Self {
+        MpvIpc {
+            socket: Framed::new(socket, LinesCodec::new()),
+            command_channel,
+            socket_lock: Mutex::new(()),
         }
     }
 
-    let response = &send_command_sync(instance, ipc_string);
-    validate_mpv_response(response)
-}
-
-pub fn observe_mpv_property(instance: &Mpv, id: &isize, property: &str) -> Result<(), Error> {
-    let ipc_string = json!({
-        "command": ["observe_property", id, property]
-    });
-
-    let response = &send_command_sync(instance, ipc_string);
-    validate_mpv_response(response)
-}
-
-pub fn unobserve_mpv_property(instance: &Mpv, id: &isize) -> Result<(), Error> {
-    let ipc_string = json!({
-        "command": ["unobserve_property", id]
-    });
-
-    let response = &send_command_sync(instance, ipc_string);
-    validate_mpv_response(response)
-}
-
-fn try_convert_property(name: &str, id: usize, data: MpvDataType) -> Event {
-    let property = match name {
-        "path" => match data {
-            MpvDataType::String(value) => Property::Path(Some(value)),
-            MpvDataType::Null => Property::Path(None),
-            _ => unimplemented!(),
-        },
-        "pause" => match data {
-            MpvDataType::Bool(value) => Property::Pause(value),
-            _ => unimplemented!(),
-        },
-        "playback-time" => match data {
-            MpvDataType::Double(value) => Property::PlaybackTime(Some(value)),
-            MpvDataType::Null => Property::PlaybackTime(None),
-            _ => unimplemented!(),
-        },
-        "duration" => match data {
-            MpvDataType::Double(value) => Property::Duration(Some(value)),
-            MpvDataType::Null => Property::Duration(None),
-            _ => unimplemented!(),
-        },
-        "metadata" => match data {
-            MpvDataType::HashMap(value) => Property::Metadata(Some(value)),
-            MpvDataType::Null => Property::Metadata(None),
-            _ => unimplemented!(),
-        },
-        _ => {
-            warn!("Property {} not implemented", name);
-            Property::Unknown {
-                name: name.to_string(),
-                data,
-            }
-        }
-    };
-    Event::PropertyChange { id, property }
-}
-
-pub fn listen(instance: &mut Mpv) -> Result<Event, Error> {
-    let mut e;
-    // sometimes we get responses unrelated to events, so we read a new line until we receive one
-    // with an event field
-    let name = loop {
-        let mut response = String::new();
-        instance.reader.read_line(&mut response).unwrap();
-        response = response.trim_end().to_string();
-        debug!("Event: {}", response);
-
-        e = serde_json::from_str::<Value>(&response)
+    pub(crate) async fn send_command(&mut self, command: &[&str]) -> Result<Option<Value>, Error> {
+        let lock = self.socket_lock.lock().await;
+        // START CRITICAL SECTION
+        let ipc_command = json!({ "command": command });
+        let ipc_command_str = serde_json::to_string(&ipc_command)
             .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))?;
 
-        match e["event"] {
-            Value::String(ref name) => break name,
-            _ => {
-                // It was not an event - try again
-                debug!("Bad response: {:?}", response)
+        log::trace!("Sending command: {}", ipc_command_str);
+
+        self.socket
+            .send(ipc_command_str)
+            .await
+            .map_err(|why| Error(ErrorCode::ConnectError(why.to_string())))?;
+
+        let response = self
+            .socket
+            .next()
+            .await
+            .ok_or(Error(ErrorCode::MissingValue))?
+            .map_err(|why| Error(ErrorCode::ConnectError(why.to_string())))?;
+
+        // END CRITICAL SECTION
+        mem::drop(lock);
+
+        log::trace!("Received response: {}", response);
+
+        serde_json::from_str::<Value>(&response)
+            .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))
+            .and_then(parse_mpv_response_data)
+
+    }
+
+    pub(crate) async fn get_mpv_property(&mut self, property: &str) -> Result<Option<Value>, Error> {
+        self.send_command(&["get_property", property]).await
+    }
+
+    pub(crate) async fn set_mpv_property(
+        &mut self,
+        property: &str,
+        value: Value,
+    ) -> Result<Option<Value>, Error> {
+        let str_value = match &value {
+          Value::String(s) => s,
+          v => &serde_json::to_string(&v).unwrap()
+        };
+        self.send_command(&["set_property", property, &str_value])
+            .await
+    }
+
+    pub(crate) async fn observe_property(
+        &mut self,
+        id: isize,
+        property: &str,
+    ) -> Result<Option<Value>, Error> {
+        self.send_command(&["observe_property", &id.to_string(), property])
+            .await
+    }
+
+    pub(crate) async fn unobserve_property(&mut self, id: isize) -> Result<Option<Value>, Error> {
+        self.send_command(&["unobserve_property", &id.to_string()])
+            .await
+    }
+
+    pub(crate) async fn run(mut self) -> Result<(), Error> {
+        loop {
+            tokio::select! {
+              Some(event) = self.socket.next() => {
+                log::trace!("Handling event: {:?}", serde_json::from_str::<Value>(&event.unwrap()).unwrap());
+                // TODO: handle event
+              }
+              Some((cmd, tx)) = self.command_channel.recv() => {
+                  log::trace!("Handling command: {:?}", cmd);
+                  match cmd {
+                      MpvIpcCommand::Command(command) => {
+                          let refs = command.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
+                          let response = self.send_command(refs.as_slice()).await;
+                          tx.send(MpvIpcResponse(response)).unwrap()
+                      }
+                      MpvIpcCommand::GetProperty(property) => {
+                          let response = self.get_mpv_property(&property).await;
+                          tx.send(MpvIpcResponse(response)).unwrap()
+                      }
+                      MpvIpcCommand::SetProperty(property, value) => {
+                          let response = self.set_mpv_property(&property, value).await;
+                          tx.send(MpvIpcResponse(response)).unwrap()
+                      }
+                      MpvIpcCommand::ObserveProperty(id, property) => {
+                          let response = self.observe_property(id, &property).await;
+                          tx.send(MpvIpcResponse(response)).unwrap()
+                      }
+                      MpvIpcCommand::UnobserveProperty(id) => {
+                          let response = self.unobserve_property(id).await;
+                          tx.send(MpvIpcResponse(response)).unwrap()
+                      }
+                      MpvIpcCommand::Exit => {
+                        tx.send(MpvIpcResponse(Ok(None))).unwrap();
+                        return Ok(());
+                      }
+                  }
+              }
             }
-        }
-    };
-
-    let event = match name.as_str() {
-        "shutdown" => Event::Shutdown,
-        "start-file" => Event::StartFile,
-        "file-loaded" => Event::FileLoaded,
-        "seek" => Event::Seek,
-        "playback-restart" => Event::PlaybackRestart,
-        "idle" => Event::Idle,
-        "tick" => Event::Tick,
-        "video-reconfig" => Event::VideoReconfig,
-        "audio-reconfig" => Event::AudioReconfig,
-        "tracks-changed" => Event::TracksChanged,
-        "track-switched" => Event::TrackSwitched,
-        "pause" => Event::Pause,
-        "unpause" => Event::Unpause,
-        "metadata-update" => Event::MetadataUpdate,
-        "chapter-change" => Event::ChapterChange,
-        "end-file" => Event::EndFile,
-        "property-change" => {
-            let name = match e["name"] {
-                Value::String(ref n) => Ok(n.to_string()),
-                _ => Err(Error(ErrorCode::JsonContainsUnexptectedType)),
-            }?;
-
-            let id: usize = match e["id"] {
-                Value::Number(ref n) => n.as_u64().unwrap() as usize,
-                _ => 0,
-            };
-
-            let data: MpvDataType = match e["data"] {
-                Value::String(ref n) => MpvDataType::String(n.to_string()),
-
-                Value::Array(ref a) => {
-                    if name == "playlist".to_string() {
-                        MpvDataType::Playlist(Playlist(json_array_to_playlist(a)))
-                    } else {
-                        MpvDataType::Array(json_array_to_vec(a))
-                    }
-                }
-
-                Value::Bool(b) => MpvDataType::Bool(b),
-
-                Value::Number(ref n) => {
-                    if n.is_u64() {
-                        MpvDataType::Usize(n.as_u64().unwrap() as usize)
-                    } else if n.is_f64() {
-                        MpvDataType::Double(n.as_f64().unwrap())
-                    } else {
-                        return Err(Error(ErrorCode::JsonContainsUnexptectedType));
-                    }
-                }
-
-                Value::Object(ref m) => MpvDataType::HashMap(json_map_to_hashmap(m)),
-
-                Value::Null => MpvDataType::Null,
-            };
-
-            try_convert_property(name.as_ref(), id, data)
-        }
-        "client-message" => {
-            let args = match e["args"] {
-                Value::Array(ref a) => json_array_to_vec(a)
-                    .iter()
-                    .map(|arg| match arg {
-                        MpvDataType::String(s) => Ok(s.to_owned()),
-                        _ => Err(Error(ErrorCode::JsonContainsUnexptectedType)),
-                    })
-                    .collect::<Result<Vec<_>, _>>(),
-                _ => return Err(Error(ErrorCode::JsonContainsUnexptectedType)),
-            }?;
-            Event::ClientMessage { args }
-        }
-        _ => Event::Unimplemented,
-    };
-    Ok(event)
-}
-
-pub fn listen_raw(instance: &mut Mpv) -> String {
-    let mut response = String::new();
-    instance.reader.read_line(&mut response).unwrap();
-    response.trim_end().to_string()
-}
-
-fn send_command_sync(instance: &Mpv, command: Value) -> String {
-    let stream = &instance.stream;
-    match serde_json::to_writer(stream, &command) {
-        Err(why) => panic!("Error: Could not write to socket: {}", why),
-        Ok(_) => {
-            let mut stream = stream;
-            stream.write_all(b"\n").unwrap();
-            let mut response = String::new();
-            {
-                let mut reader = BufReader::new(stream);
-                while !response.contains("\"error\":") {
-                    response.clear();
-                    reader.read_line(&mut response).unwrap();
-                }
-            }
-            debug!("Response: {}", response.trim_end());
-            response
         }
     }
+}
+
+fn parse_mpv_response_data(value: Value) -> Result<Option<Value>, Error> {
+    log::trace!("Parsing mpv response data: {:?}", value);
+    let result = value
+        .as_object()
+        .map(|o| (o.get("error").and_then(|e| e.as_str()), o.get("data")))
+        .ok_or(Error(ErrorCode::UnexpectedValue))
+        .and_then(|(error, data)| match error {
+            Some("success") => Ok(data),
+            Some(e) => Err(Error(ErrorCode::MpvError(e.to_string()))),
+            None => Err(Error(ErrorCode::UnexpectedValue)),
+        });
+    match &result {
+        Ok(v) => log::trace!("Successfully parsed mpv response data: {:?}", v),
+        Err(e) => log::trace!("Error parsing mpv response data: {:?}", e),
+    }
+    result.map(|opt| opt.map(|val| val.clone()))
 }
