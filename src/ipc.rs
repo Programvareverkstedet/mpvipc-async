@@ -6,7 +6,7 @@ use std::io::prelude::*;
 use std::io::BufReader;
 use std::iter::Iterator;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PlaylistEntry {
     pub id: usize,
     pub filename: String,

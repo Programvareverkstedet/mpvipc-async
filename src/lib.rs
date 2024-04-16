@@ -7,7 +7,7 @@ use std::fmt::{self, Display};
 use std::io::{BufReader, Read};
 use std::os::unix::net::UnixStream;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Event {
     Shutdown,
     StartFile,
@@ -30,7 +30,7 @@ pub enum Event {
     Unimplemented,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Property {
     Path(Option<String>),
     Pause(bool),
@@ -40,6 +40,7 @@ pub enum Property {
     Unknown { name: String, data: MpvDataType },
 }
 
+#[derive(Debug, Clone)]
 pub enum MpvCommand {
     LoadFile {
         file: String,
@@ -76,7 +77,7 @@ pub enum MpvCommand {
     Unobserve(isize),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum MpvDataType {
     Array(Vec<MpvDataType>),
     Bool(bool),
@@ -88,22 +89,26 @@ pub enum MpvDataType {
     Usize(usize),
 }
 
+#[derive(Debug, Clone)]
 pub enum NumberChangeOptions {
     Absolute,
     Increase,
     Decrease,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum PlaylistAddOptions {
     Replace,
     Append,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum PlaylistAddTypeOptions {
     File,
     Playlist,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum SeekOptions {
     Relative,
     Absolute,
@@ -111,13 +116,14 @@ pub enum SeekOptions {
     AbsolutePercent,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum Switch {
     On,
     Off,
     Toggle,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ErrorCode {
     MpvError(String),
     JsonParseError(String),
@@ -140,9 +146,9 @@ pub struct Mpv {
     reader: BufReader<UnixStream>,
     name: String,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Playlist(pub Vec<PlaylistEntry>);
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Error(pub ErrorCode);
 
 impl Drop for Mpv {
@@ -363,8 +369,7 @@ impl Mpv {
     ///     Ok(())
     /// }
     /// ```
-    pub fn get_property<T: GetPropertyTypeHandler>(&self, property: &str) -> Result<T, Error> {
-        T::get_property_generic(self, property)
+    pub fn get_property<T: GetPropertyTypeHandler>(&self, property: &str) -> Result<T, Error> { T::get_property_generic(self, property)
     }
 
     /// # Description
