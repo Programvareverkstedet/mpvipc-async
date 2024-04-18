@@ -1,12 +1,16 @@
+use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
     collections::HashMap,
     fmt::{self, Display},
 };
-use tokio::{net::UnixStream, sync::oneshot};
+use tokio::{
+    net::UnixStream,
+    sync::{broadcast, mpsc, oneshot},
+};
 
-use crate::ipc::{MpvIpc, MpvIpcCommand, MpvIpcResponse};
+use crate::ipc::{MpvIpc, MpvIpcCommand, MpvIpcEvent, MpvIpcResponse};
 use crate::message_parser::TypeHandler;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -288,7 +292,8 @@ impl Display for ErrorCode {
 
 #[derive(Clone)]
 pub struct Mpv {
-    command_sender: tokio::sync::mpsc::Sender<(MpvIpcCommand, oneshot::Sender<MpvIpcResponse>)>,
+    command_sender: mpsc::Sender<(MpvIpcCommand, oneshot::Sender<MpvIpcResponse>)>,
+    broadcast_channel: broadcast::Sender<MpvIpcEvent>,
 }
 
 impl fmt::Debug for Mpv {
@@ -310,14 +315,16 @@ impl Mpv {
     }
 
     pub async fn connect_socket(socket: UnixStream) -> Result<Mpv, Error> {
-        let (com_tx, com_rx) = tokio::sync::mpsc::channel(100);
-        let ipc = MpvIpc::new(socket, com_rx);
+        let (com_tx, com_rx) = mpsc::channel(100);
+        let (ev_tx, _) = broadcast::channel(100);
+        let ipc = MpvIpc::new(socket, com_rx, ev_tx.clone());
 
         log::debug!("Starting IPC handler");
         tokio::spawn(ipc.run());
 
         Ok(Mpv {
             command_sender: com_tx,
+            broadcast_channel: ev_tx,
         })
     }
 
@@ -337,9 +344,118 @@ impl Mpv {
         }
     }
 
-    // pub fn get_stream_ref(&self) -> &UnixStream {
-    //     &self.stream
-    // }
+    pub async fn get_event_stream(&self) -> impl futures::Stream<Item = Result<Event, Error>> {
+        tokio_stream::wrappers::BroadcastStream::new(self.broadcast_channel.subscribe())
+        .map(|event| {
+          match event {
+            Ok(event) => Mpv::map_event(event),
+            Err(_) => Err(Error(ErrorCode::ConnectError("Failed to receive event".to_string()))),
+          }
+        })
+    }
+
+    fn map_event(raw_event: MpvIpcEvent) -> Result<Event, Error> {
+        let MpvIpcEvent(event) = raw_event;
+
+        event
+            .as_object()
+            .ok_or(Error(ErrorCode::JsonContainsUnexptectedType))
+            .and_then(|event| {
+                let event_name = event
+                    .get("event")
+                    .ok_or(Error(ErrorCode::MissingValue))?
+                    .as_str()
+                    .ok_or(Error(ErrorCode::ValueDoesNotContainString))?;
+
+                match event_name {
+                    "shutdown" => Ok(Event::Shutdown),
+                    "start-file" => Ok(Event::StartFile),
+                    "end-file" => Ok(Event::EndFile),
+                    "file-loaded" => Ok(Event::FileLoaded),
+                    "tracks-changed" => Ok(Event::TracksChanged),
+                    "track-switched" => Ok(Event::TrackSwitched),
+                    "idle" => Ok(Event::Idle),
+                    "pause" => Ok(Event::Pause),
+                    "unpause" => Ok(Event::Unpause),
+                    "tick" => Ok(Event::Tick),
+                    "video-reconfig" => Ok(Event::VideoReconfig),
+                    "audio-reconfig" => Ok(Event::AudioReconfig),
+                    "metadata-update" => Ok(Event::MetadataUpdate),
+                    "seek" => Ok(Event::Seek),
+                    "playback-restart" => Ok(Event::PlaybackRestart),
+                    "property-change" => {
+                        let id = event
+                            .get("id")
+                            .ok_or(Error(ErrorCode::MissingValue))?
+                            .as_u64()
+                            .ok_or(Error(ErrorCode::ValueDoesNotContainUsize))?
+                            as usize;
+                        let property_name = event
+                            .get("name")
+                            .ok_or(Error(ErrorCode::MissingValue))?
+                            .as_str()
+                            .ok_or(Error(ErrorCode::ValueDoesNotContainString))?;
+
+                        match property_name {
+                          "path" => {
+                            let path = event
+                                .get("data")
+                                .ok_or(Error(ErrorCode::MissingValue))?
+                                .as_str()
+                                .map(|s| s.to_string());
+                            Ok(Event::PropertyChange {
+                                id,
+                                property: Property::Path(path),
+                            })
+                          }
+                          "pause" => {
+                            let pause = event
+                                .get("data")
+                                .ok_or(Error(ErrorCode::MissingValue))?
+                                .as_bool()
+                                .ok_or(Error(ErrorCode::ValueDoesNotContainBool))?;
+                            Ok(Event::PropertyChange {
+                                id,
+                                property: Property::Pause(pause),
+                            })
+                          }
+                          // TODO: missing cases
+                          _ => {
+                            let data = event
+                                .get("data")
+                                .ok_or(Error(ErrorCode::MissingValue))?
+                                .clone();
+                            Ok(Event::PropertyChange {
+                                id,
+                                property: Property::Unknown {
+                                    name: property_name.to_string(),
+                                    // TODO: fix
+                                    data: MpvDataType::Double(data.as_f64().unwrap_or(0.0)),
+                                },
+                            })
+                          }
+                        }
+                    }
+                    "chapter-change" => Ok(Event::ChapterChange),
+                    "client-message" => {
+                        let args = event
+                            .get("args")
+                            .ok_or(Error(ErrorCode::MissingValue))?
+                            .as_array()
+                            .ok_or(Error(ErrorCode::ValueDoesNotContainString))?
+                            .iter()
+                            .map(|arg| {
+                                arg.as_str()
+                                    .ok_or(Error(ErrorCode::ValueDoesNotContainString))
+                                    .map(|s| s.to_string())
+                            })
+                            .collect::<Result<Vec<String>, Error>>()?;
+                        Ok(Event::ClientMessage { args })
+                    }
+                    _ => Ok(Event::Unimplemented),
+                }
+            })
+    }
 
     pub async fn get_metadata(&self) -> Result<HashMap<String, MpvDataType>, Error> {
         self.get_property("metadata").await
@@ -414,9 +530,9 @@ impl Mpv {
                 ))
             })?;
         match res_rx.await {
-            Ok(MpvIpcResponse(response)) => response.and_then(|value| {
-                value.ok_or(Error(ErrorCode::MissingValue))
-            }),
+            Ok(MpvIpcResponse(response)) => {
+                response.and_then(|value| value.ok_or(Error(ErrorCode::MissingValue)))
+            }
             Err(err) => Err(Error(ErrorCode::ConnectError(err.to_string()))),
         }
     }
@@ -607,7 +723,11 @@ impl Mpv {
     /// Run a custom command.
     /// This should only be used if the desired command is not implemented
     /// with [MpvCommand].
-    pub async fn run_command_raw(&self, command: &str, args: &[&str]) -> Result<Option<Value>, Error> {
+    pub async fn run_command_raw(
+        &self,
+        command: &str,
+        args: &[&str],
+    ) -> Result<Option<Value>, Error> {
         let command = Vec::from(
             [command]
                 .iter()
