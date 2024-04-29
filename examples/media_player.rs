@@ -1,5 +1,5 @@
 use env_logger;
-use mpvipc::{Error, Event, Mpv, MpvDataType, Property};
+use mpvipc::{Error, Event, Mpv, MpvExt, MpvDataType, Property};
 use std::io::{self, Write};
 
 fn seconds_to_hms(total: f64) -> String {

@@ -1,5 +1,5 @@
 use env_logger;
-use mpvipc::{Error as MpvError, Mpv};
+use mpvipc::{Error as MpvError, Mpv, MpvExt};
 
 #[tokio::main]
 async fn main() -> Result<(), MpvError> {

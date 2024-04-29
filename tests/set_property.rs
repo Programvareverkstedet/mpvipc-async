@@ -1,7 +1,7 @@
 use std::{panic, time::Duration};
 
 use futures::{stream::FuturesUnordered, SinkExt, StreamExt};
-use mpvipc::{Error, ErrorCode, Mpv, Playlist, PlaylistEntry};
+use mpvipc::{Error, ErrorCode, Mpv, MpvExt, Playlist, PlaylistEntry};
 use serde_json::{json, Value};
 use test_log::test;
 use tokio::{net::UnixStream, task::JoinHandle};
