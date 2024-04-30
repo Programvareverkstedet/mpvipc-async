@@ -136,61 +136,27 @@ pub(crate) fn json_map_to_hashmap(
 }
 
 pub(crate) fn json_array_to_vec(array: &[Value]) -> Vec<MpvDataType> {
-    let mut output: Vec<MpvDataType> = Vec::new();
-    if !array.is_empty() {
-        match array[0] {
-            Value::Array(_) => {
-                for entry in array {
-                    if let Value::Array(ref a) = *entry {
-                        output.push(MpvDataType::Array(json_array_to_vec(a)));
-                    }
+    array
+        .iter()
+        .map(|entry| match entry {
+            Value::Array(a) => MpvDataType::Array(json_array_to_vec(a)),
+            Value::Bool(b) => MpvDataType::Bool(*b),
+            Value::Number(n) => {
+                if n.is_u64() {
+                    MpvDataType::Usize(n.as_u64().unwrap() as usize)
+                } else if n.is_f64() {
+                    MpvDataType::Double(n.as_f64().unwrap())
+                } else {
+                    panic!("unimplemented number");
                 }
             }
-
-            Value::Bool(_) => {
-                for entry in array {
-                    if let Value::Bool(ref b) = *entry {
-                        output.push(MpvDataType::Bool(*b));
-                    }
-                }
-            }
-
-            Value::Number(_) => {
-                for entry in array {
-                    if let Value::Number(ref n) = *entry {
-                        if n.is_u64() {
-                            output.push(MpvDataType::Usize(n.as_u64().unwrap() as usize));
-                        } else if n.is_f64() {
-                            output.push(MpvDataType::Double(n.as_f64().unwrap()));
-                        } else {
-                            panic!("unimplemented number");
-                        }
-                    }
-                }
-            }
-
-            Value::Object(_) => {
-                for entry in array {
-                    if let Value::Object(ref map) = *entry {
-                        output.push(MpvDataType::HashMap(json_map_to_hashmap(map)));
-                    }
-                }
-            }
-
-            Value::String(_) => {
-                for entry in array {
-                    if let Value::String(ref s) = *entry {
-                        output.push(MpvDataType::String(s.to_string()));
-                    }
-                }
-            }
-
+            Value::Object(ref o) => MpvDataType::HashMap(json_map_to_hashmap(o)),
+            Value::String(s) => MpvDataType::String(s.to_owned()),
             Value::Null => {
                 unimplemented!();
             }
-        }
-    }
-    output
+        })
+        .collect()
 }
 
 pub(crate) fn json_array_to_playlist(array: &[Value]) -> Vec<PlaylistEntry> {
@@ -216,4 +182,138 @@ pub(crate) fn json_array_to_playlist(array: &[Value]) -> Vec<PlaylistEntry> {
         });
     }
     output
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::MpvDataType;
+    use serde_json::json;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_json_map_to_hashmap() {
+        let json = json!({
+            "array": [1, 2, 3],
+            "bool": true,
+            "double": 1.0,
+            "usize": 1,
+            "string": "string",
+            "object": {
+                "key": "value"
+            }
+        });
+
+        let mut expected = HashMap::new();
+        expected.insert(
+            "array".to_string(),
+            MpvDataType::Array(vec![
+                MpvDataType::Usize(1),
+                MpvDataType::Usize(2),
+                MpvDataType::Usize(3),
+            ]),
+        );
+        expected.insert("bool".to_string(), MpvDataType::Bool(true));
+        expected.insert("double".to_string(), MpvDataType::Double(1.0));
+        expected.insert("usize".to_string(), MpvDataType::Usize(1));
+        expected.insert(
+            "string".to_string(),
+            MpvDataType::String("string".to_string()),
+        );
+        expected.insert(
+            "object".to_string(),
+            MpvDataType::HashMap(HashMap::from([(
+                "key".to_string(),
+                MpvDataType::String("value".to_string()),
+            )])),
+        );
+
+        assert_eq!(json_map_to_hashmap(json.as_object().unwrap()), expected);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_json_map_to_hashmap_fail_on_null() {
+        json_map_to_hashmap(
+            json!({
+                "null": null
+            })
+            .as_object()
+            .unwrap(),
+        );
+    }
+
+    #[test]
+    fn test_json_array_to_vec() {
+        let json = json!([
+            [1, 2, 3],
+            true,
+            1.0,
+            1,
+            "string",
+            {
+                "key": "value"
+            }
+        ]);
+
+        println!("{:?}", json.as_array().unwrap());
+        println!("{:?}", json_array_to_vec(json.as_array().unwrap()));
+
+        let expected = vec![
+            MpvDataType::Array(vec![
+                MpvDataType::Usize(1),
+                MpvDataType::Usize(2),
+                MpvDataType::Usize(3),
+            ]),
+            MpvDataType::Bool(true),
+            MpvDataType::Double(1.0),
+            MpvDataType::Usize(1),
+            MpvDataType::String("string".to_string()),
+            MpvDataType::HashMap(HashMap::from([(
+                "key".to_string(),
+                MpvDataType::String("value".to_string()),
+            )])),
+        ];
+
+        assert_eq!(json_array_to_vec(json.as_array().unwrap()), expected);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_json_array_to_vec_fail_on_null() {
+        json_array_to_vec(json!([null]).as_array().unwrap().as_slice());
+    }
+
+    #[test]
+    fn test_json_array_to_playlist() {
+        let json = json!([
+            {
+                "filename": "file1",
+                "title": "title1",
+                "current": true
+            },
+            {
+                "filename": "file2",
+                "title": "title2",
+                "current": false
+            }
+        ]);
+
+        let expected = vec![
+            PlaylistEntry {
+                id: 0,
+                filename: "file1".to_string(),
+                title: "title1".to_string(),
+                current: true,
+            },
+            PlaylistEntry {
+                id: 1,
+                filename: "file2".to_string(),
+                title: "title2".to_string(),
+                current: false,
+            },
+        ];
+
+        assert_eq!(json_array_to_playlist(json.as_array().unwrap()), expected);
+    }
 }

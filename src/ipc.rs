@@ -2,12 +2,11 @@
 
 use futures::{SinkExt, StreamExt};
 use serde_json::{json, Value};
-use std::mem;
 use tokio::{
     net::UnixStream,
-    sync::{broadcast, mpsc, oneshot, Mutex},
+    sync::{broadcast, mpsc, oneshot},
 };
-use tokio_util::codec::{Framed, LinesCodec, LinesCodecError};
+use tokio_util::codec::{Framed, LinesCodec};
 
 use crate::{Error, ErrorCode};
 
@@ -15,9 +14,6 @@ use crate::{Error, ErrorCode};
 /// and message passing with [`Mpv`](crate::Mpv) controllers.
 pub(crate) struct MpvIpc {
     socket: Framed<UnixStream, LinesCodec>,
-    // I had trouble with reading and writing to the socket when it was wrapped
-    // in a MutexGuard, so I'm using a separate Mutex to lock the socket when needed.
-    socket_lock: Mutex<()>,
     command_channel: mpsc::Receiver<(MpvIpcCommand, oneshot::Sender<MpvIpcResponse>)>,
     event_channel: broadcast::Sender<MpvIpcEvent>,
 }
@@ -50,14 +46,14 @@ impl MpvIpc {
         MpvIpc {
             socket: Framed::new(socket, LinesCodec::new()),
             command_channel,
-            socket_lock: Mutex::new(()),
             event_channel,
         }
     }
 
     pub(crate) async fn send_command(&mut self, command: &[Value]) -> Result<Option<Value>, Error> {
-        let lock = self.socket_lock.lock().await;
+        // let lock = self.socket_lock.lock().await;
         // START CRITICAL SECTION
+
         let ipc_command = json!({ "command": command });
         let ipc_command_str = serde_json::to_string(&ipc_command)
             .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))?;
@@ -69,21 +65,34 @@ impl MpvIpc {
             .await
             .map_err(|why| Error(ErrorCode::ConnectError(why.to_string())))?;
 
-        let response = self
-            .socket
-            .next()
-            .await
-            .ok_or(Error(ErrorCode::MissingValue))?
-            .map_err(|why| Error(ErrorCode::ConnectError(why.to_string())))?;
+        let response = loop {
+            let response = self
+                .socket
+                .next()
+                .await
+                .ok_or(Error(ErrorCode::MissingValue))?
+                .map_err(|why| Error(ErrorCode::ConnectError(why.to_string())))?;
 
+            let parsed_response = serde_json::from_str::<Value>(&response)
+                .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())));
+
+            if parsed_response
+                .as_ref()
+                .ok()
+                .and_then(|v| v.as_object().map(|o| o.contains_key("event")))
+                .unwrap_or(false)
+            {
+                self.handle_event(parsed_response).await;
+            } else {
+                break parsed_response;
+            }
+        };
         // END CRITICAL SECTION
-        mem::drop(lock);
+        // mem::drop(lock);
 
-        log::trace!("Received response: {}", response);
+        log::trace!("Received response: {:?}", response);
 
-        serde_json::from_str::<Value>(&response)
-            .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))
-            .and_then(parse_mpv_response_data)
+        parse_mpv_response_data(response?)
     }
 
     pub(crate) async fn get_mpv_property(
@@ -117,16 +126,8 @@ impl MpvIpc {
             .await
     }
 
-    async fn handle_event(&mut self, event: Result<String, LinesCodecError>) {
-        let parsed_event = event
-            .as_ref()
-            .map_err(|why| Error(ErrorCode::ConnectError(why.to_string())))
-            .and_then(|event| {
-                serde_json::from_str::<Value>(event)
-                    .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))
-            });
-
-        match parsed_event {
+    async fn handle_event(&mut self, event: Result<Value, Error>) {
+        match &event {
             Ok(event) => {
                 log::trace!("Parsed event: {:?}", event);
                 if let Err(broadcast::error::SendError(_)) =
@@ -136,7 +137,7 @@ impl MpvIpc {
                 }
             }
             Err(e) => {
-                log::trace!("Error parsing event, ignoring:\n  {:?}\n  {:?}", event, e);
+                log::trace!("Error parsing event, ignoring:\n  {:?}\n  {:?}", &event, e);
             }
         }
     }
@@ -146,8 +147,14 @@ impl MpvIpc {
             tokio::select! {
               Some(event) = self.socket.next() => {
                 log::trace!("Got event: {:?}", event);
-                // TODO: error handling
-                self.handle_event(event).await;
+
+                let parsed_event = event
+                    .map_err(|why| Error(ErrorCode::ConnectError(why.to_string())))
+                    .and_then(|event|
+                        serde_json::from_str::<Value>(&event)
+                        .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string()))));
+
+                self.handle_event(parsed_event).await;
               }
               Some((cmd, tx)) = self.command_channel.recv() => {
                   log::trace!("Handling command: {:?}", cmd);

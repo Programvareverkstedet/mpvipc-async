@@ -16,7 +16,7 @@ use crate::{ipc::MpvIpcEvent, Error, ErrorCode, MpvDataType};
 ///
 /// See <https://mpv.io/manual/master/#properties> for
 /// the upstream list of properties.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Property {
     Path(Option<String>),
     Pause(bool),
@@ -35,7 +35,7 @@ pub enum Property {
 ///
 /// See <https://mpv.io/manual/master/#list-of-events> for
 /// the upstream list of events.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Event {
     Shutdown,
     StartFile,
