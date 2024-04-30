@@ -321,13 +321,14 @@ impl Mpv {
     }
 
     pub async fn get_event_stream(&self) -> impl futures::Stream<Item = Result<Event, Error>> {
-        tokio_stream::wrappers::BroadcastStream::new(self.broadcast_channel.subscribe())
-        .map(|event| {
-          match event {
-            Ok(event) => Mpv::map_event(event),
-            Err(_) => Err(Error(ErrorCode::ConnectError("Failed to receive event".to_string()))),
-          }
-        })
+        tokio_stream::wrappers::BroadcastStream::new(self.broadcast_channel.subscribe()).map(
+            |event| match event {
+                Ok(event) => Mpv::map_event(event),
+                Err(_) => Err(Error(ErrorCode::ConnectError(
+                    "Failed to receive event".to_string(),
+                ))),
+            },
+        )
     }
 
     fn map_event(raw_event: MpvIpcEvent) -> Result<Event, Error> {
@@ -373,43 +374,43 @@ impl Mpv {
                             .ok_or(Error(ErrorCode::ValueDoesNotContainString))?;
 
                         match property_name {
-                          "path" => {
-                            let path = event
-                                .get("data")
-                                .ok_or(Error(ErrorCode::MissingValue))?
-                                .as_str()
-                                .map(|s| s.to_string());
-                            Ok(Event::PropertyChange {
-                                id,
-                                property: Property::Path(path),
-                            })
-                          }
-                          "pause" => {
-                            let pause = event
-                                .get("data")
-                                .ok_or(Error(ErrorCode::MissingValue))?
-                                .as_bool()
-                                .ok_or(Error(ErrorCode::ValueDoesNotContainBool))?;
-                            Ok(Event::PropertyChange {
-                                id,
-                                property: Property::Pause(pause),
-                            })
-                          }
-                          // TODO: missing cases
-                          _ => {
-                            let data = event
-                                .get("data")
-                                .ok_or(Error(ErrorCode::MissingValue))?
-                                .clone();
-                            Ok(Event::PropertyChange {
-                                id,
-                                property: Property::Unknown {
-                                    name: property_name.to_string(),
-                                    // TODO: fix
-                                    data: MpvDataType::Double(data.as_f64().unwrap_or(0.0)),
-                                },
-                            })
-                          }
+                            "path" => {
+                                let path = event
+                                    .get("data")
+                                    .ok_or(Error(ErrorCode::MissingValue))?
+                                    .as_str()
+                                    .map(|s| s.to_string());
+                                Ok(Event::PropertyChange {
+                                    id,
+                                    property: Property::Path(path),
+                                })
+                            }
+                            "pause" => {
+                                let pause = event
+                                    .get("data")
+                                    .ok_or(Error(ErrorCode::MissingValue))?
+                                    .as_bool()
+                                    .ok_or(Error(ErrorCode::ValueDoesNotContainBool))?;
+                                Ok(Event::PropertyChange {
+                                    id,
+                                    property: Property::Pause(pause),
+                                })
+                            }
+                            // TODO: missing cases
+                            _ => {
+                                let data = event
+                                    .get("data")
+                                    .ok_or(Error(ErrorCode::MissingValue))?
+                                    .clone();
+                                Ok(Event::PropertyChange {
+                                    id,
+                                    property: Property::Unknown {
+                                        name: property_name.to_string(),
+                                        // TODO: fix
+                                        data: MpvDataType::Double(data.as_f64().unwrap_or(0.0)),
+                                    },
+                                })
+                            }
                         }
                     }
                     "chapter-change" => Ok(Event::ChapterChange),

@@ -79,9 +79,7 @@ async fn test_get_property_error() {
 
     assert_eq!(
         maybe_volume,
-        Err(Error(ErrorCode::MpvError(
-            "property not found".to_owned()
-        )))
+        Err(Error(ErrorCode::MpvError("property not found".to_owned())))
     );
 
     join_handle.await.unwrap().unwrap();
@@ -94,33 +92,29 @@ async fn test_set_property_simultaneous_requests() {
         let mut framed = Framed::new(socket, LinesCodec::new());
 
         while let Some(request) = framed.next().await {
-            match serde_json::from_str::<Value>(&request.unwrap()) {
-                Ok(json) => {
-                    let property = json["command"][1].as_str().unwrap();
-                    let value = &json["command"][2];
-                    log::info!("Received set property command: {:?} => {:?}", property, value);
-                    match property {
-                        "volume" => {
-                            let response =
-                                json!({ "request_id": 0, "error": "success" })
-                                    .to_string();
-                            framed.send(response).await.unwrap();
-                        }
-                        "pause" => {
-                            let response =
-                                json!({ "request_id": 0, "error": "success" })
-                                    .to_string();
-                            framed.send(response).await.unwrap();
-                        }
-                        _ => {
-                            let response =
-                                json!({ "error":"property not found", "request_id": 0 })
-                                    .to_string();
-                            framed.send(response).await.unwrap();
-                        }
+            if let Ok(json) = serde_json::from_str::<Value>(&request.unwrap()) {
+                let property = json["command"][1].as_str().unwrap();
+                let value = &json["command"][2];
+                log::info!(
+                    "Received set property command: {:?} => {:?}",
+                    property,
+                    value
+                );
+                match property {
+                    "volume" => {
+                        let response = json!({ "request_id": 0, "error": "success" }).to_string();
+                        framed.send(response).await.unwrap();
+                    }
+                    "pause" => {
+                        let response = json!({ "request_id": 0, "error": "success" }).to_string();
+                        framed.send(response).await.unwrap();
+                    }
+                    _ => {
+                        let response =
+                            json!({ "error":"property not found", "request_id": 0 }).to_string();
+                        framed.send(response).await.unwrap();
                     }
                 }
-                Err(_) => {}
             }
         }
 
@@ -153,9 +147,7 @@ async fn test_set_property_simultaneous_requests() {
             let maybe_volume = mpv_clone_3.set_property("nonexistent", "a").await;
             assert_eq!(
                 maybe_volume,
-                Err(Error(ErrorCode::MpvError(
-                    "property not found".to_owned()
-                )))
+                Err(Error(ErrorCode::MpvError("property not found".to_owned())))
             );
         }
     });

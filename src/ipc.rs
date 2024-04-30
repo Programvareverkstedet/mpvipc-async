@@ -115,7 +115,7 @@ impl MpvIpc {
             .as_ref()
             .map_err(|why| Error(ErrorCode::ConnectError(why.to_string())))
             .and_then(|event| {
-                serde_json::from_str::<Value>(&event)
+                serde_json::from_str::<Value>(event)
                     .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))
             });
 
@@ -192,5 +192,5 @@ fn parse_mpv_response_data(value: Value) -> Result<Option<Value>, Error> {
         Ok(v) => log::trace!("Successfully parsed mpv response data: {:?}", v),
         Err(e) => log::trace!("Error parsing mpv response data: {:?}", e),
     }
-    result.map(|opt| opt.map(|val| val.clone()))
+    result.map(|opt| opt.cloned())
 }

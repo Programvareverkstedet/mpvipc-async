@@ -24,7 +24,9 @@ impl TypeHandler for String {
 
 impl TypeHandler for bool {
     fn get_value(value: Value) -> Result<bool, Error> {
-            value.as_bool().ok_or(Error(ErrorCode::ValueDoesNotContainBool))
+        value
+            .as_bool()
+            .ok_or(Error(ErrorCode::ValueDoesNotContainBool))
     }
 
     fn as_string(&self) -> String {
@@ -38,7 +40,9 @@ impl TypeHandler for bool {
 
 impl TypeHandler for f64 {
     fn get_value(value: Value) -> Result<f64, Error> {
-            value.as_f64().ok_or(Error(ErrorCode::ValueDoesNotContainF64))
+        value
+            .as_f64()
+            .ok_or(Error(ErrorCode::ValueDoesNotContainF64))
     }
 
     fn as_string(&self) -> String {
@@ -48,9 +52,10 @@ impl TypeHandler for f64 {
 
 impl TypeHandler for usize {
     fn get_value(value: Value) -> Result<usize, Error> {
-            value.as_u64()
+        value
+            .as_u64()
             .map(|u| u as usize)
-.ok_or(Error(ErrorCode::ValueDoesNotContainUsize))
+            .ok_or(Error(ErrorCode::ValueDoesNotContainUsize))
     }
 
     fn as_string(&self) -> String {
@@ -60,8 +65,9 @@ impl TypeHandler for usize {
 
 impl TypeHandler for HashMap<String, MpvDataType> {
     fn get_value(value: Value) -> Result<HashMap<String, MpvDataType>, Error> {
-                value.as_object()
-                    .ok_or(Error(ErrorCode::ValueDoesNotContainHashMap))
+        value
+            .as_object()
+            .ok_or(Error(ErrorCode::ValueDoesNotContainHashMap))
             .map(json_map_to_hashmap)
     }
 
@@ -72,9 +78,10 @@ impl TypeHandler for HashMap<String, MpvDataType> {
 
 impl TypeHandler for Vec<PlaylistEntry> {
     fn get_value(value: Value) -> Result<Vec<PlaylistEntry>, Error> {
-                value.as_array()
-                    .ok_or(Error(ErrorCode::ValueDoesNotContainPlaylist))
-            .map(json_array_to_playlist)
+        value
+            .as_array()
+            .ok_or(Error(ErrorCode::ValueDoesNotContainPlaylist))
+            .map(|array| json_array_to_playlist(array))
     }
 
     fn as_string(&self) -> String {
@@ -86,8 +93,8 @@ pub(crate) fn json_map_to_hashmap(
     map: &serde_json::map::Map<String, Value>,
 ) -> HashMap<String, MpvDataType> {
     let mut output_map: HashMap<String, MpvDataType> = HashMap::new();
-    for (ref key, ref value) in map.iter() {
-        match **value {
+    for (ref key, value) in map.iter() {
+        match *value {
             Value::Array(ref array) => {
                 output_map.insert(
                     key.to_string(),
@@ -126,9 +133,9 @@ pub(crate) fn json_map_to_hashmap(
     output_map
 }
 
-pub(crate) fn json_array_to_vec(array: &Vec<Value>) -> Vec<MpvDataType> {
+pub(crate) fn json_array_to_vec(array: &[Value]) -> Vec<MpvDataType> {
     let mut output: Vec<MpvDataType> = Vec::new();
-    if array.len() > 0 {
+    if !array.is_empty() {
         match array[0] {
             Value::Array(_) => {
                 for entry in array {
@@ -184,7 +191,7 @@ pub(crate) fn json_array_to_vec(array: &Vec<Value>) -> Vec<MpvDataType> {
     output
 }
 
-pub(crate) fn json_array_to_playlist(array: &Vec<Value>) -> Vec<PlaylistEntry> {
+pub(crate) fn json_array_to_playlist(array: &[Value]) -> Vec<PlaylistEntry> {
     let mut output: Vec<PlaylistEntry> = Vec::new();
     for (id, entry) in array.iter().enumerate() {
         let mut filename: String = String::new();

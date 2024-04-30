@@ -89,32 +89,27 @@ async fn test_get_property_simultaneous_requests() {
         let mut framed = Framed::new(socket, LinesCodec::new());
 
         while let Some(request) = framed.next().await {
-            match serde_json::from_str::<Value>(&request.unwrap()) {
-                Ok(json) => {
-                    let property = json["command"][1].as_str().unwrap();
-                    log::info!("Received request for property: {:?}", property);
-                    match property {
-                        "volume" => {
-                            let response =
-                                json!({ "data": 100.0, "request_id": 0, "error": "success" })
-                                    .to_string();
-                            framed.send(response).await.unwrap();
-                        }
-                        "pause" => {
-                            let response =
-                                json!({ "data": true, "request_id": 0, "error": "success" })
-                                    .to_string();
-                            framed.send(response).await.unwrap();
-                        }
-                        _ => {
-                            let response =
-                                json!({ "error": "property unavailable", "request_id": 0 })
-                                    .to_string();
-                            framed.send(response).await.unwrap();
-                        }
+            if let Ok(json) = serde_json::from_str::<Value>(&request.unwrap()) {
+                let property = json["command"][1].as_str().unwrap();
+                log::info!("Received request for property: {:?}", property);
+                match property {
+                    "volume" => {
+                        let response =
+                            json!({ "data": 100.0, "request_id": 0, "error": "success" })
+                                .to_string();
+                        framed.send(response).await.unwrap();
+                    }
+                    "pause" => {
+                        let response = json!({ "data": true, "request_id": 0, "error": "success" })
+                            .to_string();
+                        framed.send(response).await.unwrap();
+                    }
+                    _ => {
+                        let response =
+                            json!({ "error": "property unavailable", "request_id": 0 }).to_string();
+                        framed.send(response).await.unwrap();
                     }
                 }
-                Err(_) => {}
             }
         }
 
@@ -136,7 +131,7 @@ async fn test_get_property_simultaneous_requests() {
         loop {
             tokio::time::sleep(Duration::from_millis(1)).await;
             let paused: bool = mpv_clone_2.get_property("pause").await.unwrap();
-            assert_eq!(paused, true);
+            assert!(paused);
         }
     });
 

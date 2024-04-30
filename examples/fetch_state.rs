@@ -1,4 +1,3 @@
-use env_logger;
 use mpvipc::{Error as MpvError, Mpv, MpvExt};
 
 #[tokio::main]

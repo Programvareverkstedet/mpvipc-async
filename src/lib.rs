@@ -1,7 +1,7 @@
 mod api;
+mod api_extension;
 mod ipc;
 mod message_parser;
-mod api_extension;
 
 pub use api::*;
 pub use api_extension::*;

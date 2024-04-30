@@ -1,6 +1,4 @@
-use env_logger;
-use mpvipc::{Error, Event, Mpv, MpvExt, MpvDataType, Property};
-use std::io::{self, Write};
+use mpvipc::{Error, Mpv, MpvExt};
 
 fn seconds_to_hms(total: f64) -> String {
     let total = total as u64;
@@ -15,10 +13,10 @@ fn seconds_to_hms(total: f64) -> String {
 async fn main() -> Result<(), Error> {
     env_logger::init();
 
-    let mut mpv = Mpv::connect("/tmp/mpv.sock").await?;
-    let mut pause = false;
-    let mut playback_time = std::f64::NAN;
-    let mut duration = std::f64::NAN;
+    let mpv = Mpv::connect("/tmp/mpv.sock").await?;
+    let pause = false;
+    let playback_time = std::f64::NAN;
+    let duration = std::f64::NAN;
     mpv.observe_property(1, "path").await?;
     mpv.observe_property(2, "pause").await?;
     mpv.observe_property(3, "playback-time").await?;

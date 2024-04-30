@@ -1,4 +1,7 @@
-use crate::{Error, IntoRawCommandPart, Mpv, MpvCommand, MpvDataType, Playlist, PlaylistAddOptions, PlaylistAddTypeOptions, PlaylistEntry, SeekOptions};
+use crate::{
+    Error, IntoRawCommandPart, Mpv, MpvCommand, MpvDataType, Playlist, PlaylistAddOptions,
+    PlaylistAddTypeOptions, PlaylistEntry, SeekOptions,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -31,7 +34,8 @@ pub enum Switch {
 pub trait MpvExt {
     async fn toggle(&self) -> Result<(), Error>;
     async fn stop(&self) -> Result<(), Error>;
-    async fn set_volume(&self, input_volume: f64, option: NumberChangeOptions) -> Result<(), Error>;
+    async fn set_volume(&self, input_volume: f64, option: NumberChangeOptions)
+        -> Result<(), Error>;
     async fn set_speed(&self, input_speed: f64, option: NumberChangeOptions) -> Result<(), Error>;
     async fn set_mute(&self, option: Switch) -> Result<(), Error>;
     async fn set_loop_playlist(&self, option: Switch) -> Result<(), Error>;
@@ -43,7 +47,12 @@ pub trait MpvExt {
     async fn playlist_play_id(&self, id: usize) -> Result<(), Error>;
     async fn playlist_move_id(&self, from: usize, to: usize) -> Result<(), Error>;
     async fn playlist_clear(&self) -> Result<(), Error>;
-    async fn playlist_add(&self, file: &str, file_type: PlaylistAddTypeOptions, option: PlaylistAddOptions) -> Result<(), Error>;
+    async fn playlist_add(
+        &self,
+        file: &str,
+        file_type: PlaylistAddTypeOptions,
+        option: PlaylistAddOptions,
+    ) -> Result<(), Error>;
     async fn restart(&self) -> Result<(), Error>;
     async fn prev(&self) -> Result<(), Error>;
     async fn pause(&self) -> Result<(), Error>;
@@ -53,7 +62,6 @@ pub trait MpvExt {
     async fn kill(&self) -> Result<(), Error>;
     async fn get_playlist(&self) -> Result<Playlist, Error>;
     async fn get_metadata(&self) -> Result<HashMap<String, MpvDataType>, Error>;
-
 }
 
 impl MpvExt for Mpv {
@@ -64,7 +72,7 @@ impl MpvExt for Mpv {
     async fn get_playlist(&self) -> Result<Playlist, Error> {
         self.get_property::<Vec<PlaylistEntry>>("playlist")
             .await
-            .map(|entries| Playlist(entries))
+            .map(Playlist)
     }
 
     async fn kill(&self) -> Result<(), Error> {
@@ -217,11 +225,7 @@ impl MpvExt for Mpv {
         self.set_property("mute", enabled).await
     }
 
-    async fn set_speed(
-        &self,
-        input_speed: f64,
-        option: NumberChangeOptions,
-    ) -> Result<(), Error> {
+    async fn set_speed(&self, input_speed: f64, option: NumberChangeOptions) -> Result<(), Error> {
         match self.get_property::<f64>("speed").await {
             Ok(speed) => match option {
                 NumberChangeOptions::Increase => {

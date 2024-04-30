@@ -1,7 +1,7 @@
 use std::panic;
 
 use futures::{stream::StreamExt, SinkExt};
-use mpvipc::{Mpv, MpvExt, MpvDataType, Property};
+use mpvipc::{Mpv, MpvDataType, MpvExt, Property};
 use serde_json::json;
 use test_log::test;
 use tokio::{net::UnixStream, task::JoinHandle};
