@@ -1,3 +1,6 @@
+[![Coverage](https://pvv.ntnu.no/~oysteikt/gitea/mpvipc/master/coverage/badges/for_the_badge.svg)](https://pvv.ntnu.no/~oysteikt/gitea/mpvipc/master/coverage/src/)
+[![Docs](https://img.shields.io/badge/docs-blue?style=for-the-badge&logo=rust)](https://pvv.ntnu.no/~oysteikt/gitea/mpvipc/master/docs/mpvipc/)
+
 # mpvipc
 
 A small library which provides bindings to control existing mpv instances through sockets.
