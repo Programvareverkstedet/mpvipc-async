@@ -29,6 +29,7 @@ pub enum Switch {
     Toggle,
 }
 
+/// The `MpvExt` trait provides a set of typesafe high-level functions to interact with mpv.
 // TODO: fix this
 #[allow(async_fn_in_trait)]
 pub trait MpvExt {

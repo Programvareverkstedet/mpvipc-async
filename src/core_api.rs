@@ -1,50 +1,17 @@
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{
-    collections::HashMap,
-    fmt::{self, Display},
-};
+use std::{collections::HashMap, fmt};
 use tokio::{
     net::UnixStream,
     sync::{broadcast, mpsc, oneshot},
 };
 
-use crate::ipc::{MpvIpc, MpvIpcCommand, MpvIpcEvent, MpvIpcResponse};
-use crate::message_parser::TypeHandler;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Event {
-    Shutdown,
-    StartFile,
-    EndFile,
-    FileLoaded,
-    TracksChanged,
-    TrackSwitched,
-    Idle,
-    Pause,
-    Unpause,
-    Tick,
-    VideoReconfig,
-    AudioReconfig,
-    MetadataUpdate,
-    Seek,
-    PlaybackRestart,
-    PropertyChange { id: usize, property: Property },
-    ChapterChange,
-    ClientMessage { args: Vec<String> },
-    Unimplemented,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Property {
-    Path(Option<String>),
-    Pause(bool),
-    PlaybackTime(Option<f64>),
-    Duration(Option<f64>),
-    Metadata(Option<HashMap<String, MpvDataType>>),
-    Unknown { name: String, data: MpvDataType },
-}
+use crate::{
+    ipc::{MpvIpc, MpvIpcCommand, MpvIpcEvent, MpvIpcResponse},
+    message_parser::TypeHandler,
+    Error, ErrorCode, Event,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MpvCommand {
@@ -140,24 +107,6 @@ impl IntoRawCommandPart for SeekOptions {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ErrorCode {
-    MpvError(String),
-    JsonParseError(String),
-    ConnectError(String),
-    JsonContainsUnexptectedType,
-    UnexpectedResult,
-    UnexpectedValue,
-    MissingValue,
-    UnsupportedType,
-    ValueDoesNotContainBool,
-    ValueDoesNotContainF64,
-    ValueDoesNotContainHashMap,
-    ValueDoesNotContainPlaylist,
-    ValueDoesNotContainString,
-    ValueDoesNotContainUsize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlaylistEntry {
     pub id: usize,
     pub filename: String,
@@ -220,52 +169,6 @@ where
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Error(pub ErrorCode);
-
-impl Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        Display::fmt(&self.0, f)
-    }
-}
-
-impl std::error::Error for Error {}
-
-impl Display for ErrorCode {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ErrorCode::ConnectError(ref msg) => f.write_str(&format!("ConnectError: {}", msg)),
-            ErrorCode::JsonParseError(ref msg) => f.write_str(&format!("JsonParseError: {}", msg)),
-            ErrorCode::MpvError(ref msg) => f.write_str(&format!("MpvError: {}", msg)),
-            ErrorCode::JsonContainsUnexptectedType => {
-                f.write_str("Mpv sent a value with an unexpected type")
-            }
-            ErrorCode::UnexpectedResult => f.write_str("Unexpected result received"),
-            ErrorCode::UnexpectedValue => f.write_str("Unexpected value received"),
-            ErrorCode::MissingValue => f.write_str("Missing value"),
-            ErrorCode::UnsupportedType => f.write_str("Unsupported type received"),
-            ErrorCode::ValueDoesNotContainBool => {
-                f.write_str("The received value is not of type \'std::bool\'")
-            }
-            ErrorCode::ValueDoesNotContainF64 => {
-                f.write_str("The received value is not of type \'std::f64\'")
-            }
-            ErrorCode::ValueDoesNotContainHashMap => {
-                f.write_str("The received value is not of type \'std::collections::HashMap\'")
-            }
-            ErrorCode::ValueDoesNotContainPlaylist => {
-                f.write_str("The received value is not of type \'mpvipc::Playlist\'")
-            }
-            ErrorCode::ValueDoesNotContainString => {
-                f.write_str("The received value is not of type \'std::string::String\'")
-            }
-            ErrorCode::ValueDoesNotContainUsize => {
-                f.write_str("The received value is not of type \'std::usize\'")
-            }
-        }
-    }
-}
-
 #[derive(Clone)]
 pub struct Mpv {
     command_sender: mpsc::Sender<(MpvIpcCommand, oneshot::Sender<MpvIpcResponse>)>,
@@ -323,7 +226,7 @@ impl Mpv {
     pub async fn get_event_stream(&self) -> impl futures::Stream<Item = Result<Event, Error>> {
         tokio_stream::wrappers::BroadcastStream::new(self.broadcast_channel.subscribe()).map(
             |event| match event {
-                Ok(event) => Mpv::map_event(event),
+                Ok(event) => crate::event_parser::map_event(event),
                 Err(_) => Err(Error(ErrorCode::ConnectError(
                     "Failed to receive event".to_string(),
                 ))),
@@ -331,177 +234,44 @@ impl Mpv {
         )
     }
 
-    fn map_event(raw_event: MpvIpcEvent) -> Result<Event, Error> {
-        let MpvIpcEvent(event) = raw_event;
-
-        event
-            .as_object()
-            .ok_or(Error(ErrorCode::JsonContainsUnexptectedType))
-            .and_then(|event| {
-                let event_name = event
-                    .get("event")
-                    .ok_or(Error(ErrorCode::MissingValue))?
-                    .as_str()
-                    .ok_or(Error(ErrorCode::ValueDoesNotContainString))?;
-
-                match event_name {
-                    "shutdown" => Ok(Event::Shutdown),
-                    "start-file" => Ok(Event::StartFile),
-                    "end-file" => Ok(Event::EndFile),
-                    "file-loaded" => Ok(Event::FileLoaded),
-                    "tracks-changed" => Ok(Event::TracksChanged),
-                    "track-switched" => Ok(Event::TrackSwitched),
-                    "idle" => Ok(Event::Idle),
-                    "pause" => Ok(Event::Pause),
-                    "unpause" => Ok(Event::Unpause),
-                    "tick" => Ok(Event::Tick),
-                    "video-reconfig" => Ok(Event::VideoReconfig),
-                    "audio-reconfig" => Ok(Event::AudioReconfig),
-                    "metadata-update" => Ok(Event::MetadataUpdate),
-                    "seek" => Ok(Event::Seek),
-                    "playback-restart" => Ok(Event::PlaybackRestart),
-                    "property-change" => {
-                        let id = event
-                            .get("id")
-                            .ok_or(Error(ErrorCode::MissingValue))?
-                            .as_u64()
-                            .ok_or(Error(ErrorCode::ValueDoesNotContainUsize))?
-                            as usize;
-                        let property_name = event
-                            .get("name")
-                            .ok_or(Error(ErrorCode::MissingValue))?
-                            .as_str()
-                            .ok_or(Error(ErrorCode::ValueDoesNotContainString))?;
-
-                        match property_name {
-                            "path" => {
-                                let path = event
-                                    .get("data")
-                                    .ok_or(Error(ErrorCode::MissingValue))?
-                                    .as_str()
-                                    .map(|s| s.to_string());
-                                Ok(Event::PropertyChange {
-                                    id,
-                                    property: Property::Path(path),
-                                })
-                            }
-                            "pause" => {
-                                let pause = event
-                                    .get("data")
-                                    .ok_or(Error(ErrorCode::MissingValue))?
-                                    .as_bool()
-                                    .ok_or(Error(ErrorCode::ValueDoesNotContainBool))?;
-                                Ok(Event::PropertyChange {
-                                    id,
-                                    property: Property::Pause(pause),
-                                })
-                            }
-                            // TODO: missing cases
-                            _ => {
-                                let data = event
-                                    .get("data")
-                                    .ok_or(Error(ErrorCode::MissingValue))?
-                                    .clone();
-                                Ok(Event::PropertyChange {
-                                    id,
-                                    property: Property::Unknown {
-                                        name: property_name.to_string(),
-                                        // TODO: fix
-                                        data: MpvDataType::Double(data.as_f64().unwrap_or(0.0)),
-                                    },
-                                })
-                            }
-                        }
-                    }
-                    "chapter-change" => Ok(Event::ChapterChange),
-                    "client-message" => {
-                        let args = event
-                            .get("args")
-                            .ok_or(Error(ErrorCode::MissingValue))?
-                            .as_array()
-                            .ok_or(Error(ErrorCode::ValueDoesNotContainString))?
-                            .iter()
-                            .map(|arg| {
-                                arg.as_str()
-                                    .ok_or(Error(ErrorCode::ValueDoesNotContainString))
-                                    .map(|s| s.to_string())
-                            })
-                            .collect::<Result<Vec<String>, Error>>()?;
-                        Ok(Event::ClientMessage { args })
-                    }
-                    _ => Ok(Event::Unimplemented),
-                }
-            })
-    }
-
-    /// # Description
-    ///
-    /// Retrieves the property value from mpv.
-    ///
-    /// ## Supported types
-    /// - String
-    /// - bool
-    /// - HashMap<String, String> (e.g. for the 'metadata' property)
-    /// - Vec<PlaylistEntry> (for the 'playlist' property)
-    /// - usize
-    /// - f64
-    ///
-    /// ## Input arguments
-    ///
-    /// - **property** defines the mpv property that should be retrieved
-    ///
-    /// # Example
-    /// ```
-    /// use mpvipc::{Mpv, Error};
-    /// async fn main() -> Result<(), Error> {
-    ///     let mpv = Mpv::connect("/tmp/mpvsocket")?;
-    ///     let paused: bool = mpv.get_property("pause").await?;
-    ///     let title: String = mpv.get_property("media-title").await?;
-    ///     Ok(())
-    /// }
-    /// ```
-    pub async fn get_property<T: GetPropertyTypeHandler>(
+    /// Run a custom command.
+    /// This should only be used if the desired command is not implemented
+    /// with [MpvCommand].
+    pub async fn run_command_raw(
         &self,
-        property: &str,
-    ) -> Result<T, Error> {
-        T::get_property_generic(self, property).await
-    }
-
-    /// # Description
-    ///
-    /// Retrieves the property value from mpv.
-    /// The result is always of type String, regardless of the type of the value of the mpv property
-    ///
-    /// ## Input arguments
-    ///
-    /// - **property** defines the mpv property that should be retrieved
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use mpvipc::{Mpv, Error};
-    /// fn main() -> Result<(), Error> {
-    ///     let mpv = Mpv::connect("/tmp/mpvsocket")?;
-    ///     let title = mpv.get_property_string("media-title")?;
-    ///     Ok(())
-    /// }
-    /// ```
-    pub async fn get_property_value(&self, property: &str) -> Result<Value, Error> {
+        command: &str,
+        args: &[&str],
+    ) -> Result<Option<Value>, Error> {
+        let command = Vec::from(
+            [command]
+                .iter()
+                .chain(args.iter())
+                .map(|s| s.to_string())
+                .collect::<Vec<String>>()
+                .as_slice(),
+        );
         let (res_tx, res_rx) = oneshot::channel();
         self.command_sender
-            .send((MpvIpcCommand::GetProperty(property.to_owned()), res_tx))
+            .send((MpvIpcCommand::Command(command), res_tx))
             .await
             .map_err(|_| {
                 Error(ErrorCode::ConnectError(
                     "Failed to send command".to_string(),
                 ))
             })?;
+
         match res_rx.await {
-            Ok(MpvIpcResponse(response)) => {
-                response.and_then(|value| value.ok_or(Error(ErrorCode::MissingValue)))
-            }
+            Ok(MpvIpcResponse(response)) => response,
             Err(err) => Err(Error(ErrorCode::ConnectError(err.to_string()))),
         }
+    }
+
+    async fn run_command_raw_ignore_value(
+        &self,
+        command: &str,
+        args: &[&str],
+    ) -> Result<(), Error> {
+        self.run_command_raw(command, args).await.map(|_| ())
     }
 
     /// # Description
@@ -630,44 +400,74 @@ impl Mpv {
         result
     }
 
-    /// Run a custom command.
-    /// This should only be used if the desired command is not implemented
-    /// with [MpvCommand].
-    pub async fn run_command_raw(
+    /// # Description
+    ///
+    /// Retrieves the property value from mpv.
+    ///
+    /// ## Supported types
+    /// - String
+    /// - bool
+    /// - HashMap<String, String> (e.g. for the 'metadata' property)
+    /// - Vec<PlaylistEntry> (for the 'playlist' property)
+    /// - usize
+    /// - f64
+    ///
+    /// ## Input arguments
+    ///
+    /// - **property** defines the mpv property that should be retrieved
+    ///
+    /// # Example
+    /// ```
+    /// use mpvipc::{Mpv, Error};
+    /// async fn main() -> Result<(), Error> {
+    ///     let mpv = Mpv::connect("/tmp/mpvsocket")?;
+    ///     let paused: bool = mpv.get_property("pause").await?;
+    ///     let title: String = mpv.get_property("media-title").await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn get_property<T: GetPropertyTypeHandler>(
         &self,
-        command: &str,
-        args: &[&str],
-    ) -> Result<Option<Value>, Error> {
-        let command = Vec::from(
-            [command]
-                .iter()
-                .chain(args.iter())
-                .map(|s| s.to_string())
-                .collect::<Vec<String>>()
-                .as_slice(),
-        );
+        property: &str,
+    ) -> Result<T, Error> {
+        T::get_property_generic(self, property).await
+    }
+
+    /// # Description
+    ///
+    /// Retrieves the property value from mpv.
+    /// The result is always of type String, regardless of the type of the value of the mpv property
+    ///
+    /// ## Input arguments
+    ///
+    /// - **property** defines the mpv property that should be retrieved
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use mpvipc::{Mpv, Error};
+    /// fn main() -> Result<(), Error> {
+    ///     let mpv = Mpv::connect("/tmp/mpvsocket")?;
+    ///     let title = mpv.get_property_string("media-title")?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn get_property_value(&self, property: &str) -> Result<Value, Error> {
         let (res_tx, res_rx) = oneshot::channel();
         self.command_sender
-            .send((MpvIpcCommand::Command(command), res_tx))
+            .send((MpvIpcCommand::GetProperty(property.to_owned()), res_tx))
             .await
             .map_err(|_| {
                 Error(ErrorCode::ConnectError(
                     "Failed to send command".to_string(),
                 ))
             })?;
-
         match res_rx.await {
-            Ok(MpvIpcResponse(response)) => response,
+            Ok(MpvIpcResponse(response)) => {
+                response.and_then(|value| value.ok_or(Error(ErrorCode::MissingValue)))
+            }
             Err(err) => Err(Error(ErrorCode::ConnectError(err.to_string()))),
         }
-    }
-
-    async fn run_command_raw_ignore_value(
-        &self,
-        command: &str,
-        args: &[&str],
-    ) -> Result<(), Error> {
-        self.run_command_raw(command, args).await.map(|_| ())
     }
 
     /// # Description
