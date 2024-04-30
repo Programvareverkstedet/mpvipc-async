@@ -1,3 +1,5 @@
+//! The core API for interacting with [`Mpv`].
+
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -13,6 +15,16 @@ use crate::{
     Error, ErrorCode, Event,
 };
 
+/// All possible commands that can be sent to mpv.
+///
+/// Not all commands are guaranteed to be implemented.
+/// If something is missing, please open an issue.
+///
+/// You can also use the `run_command_raw` function to run commands
+/// that are not implemented here.
+///
+/// See <https://mpv.io/manual/master/#list-of-input-commands> for
+/// the upstream list of commands.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MpvCommand {
     LoadFile {
@@ -50,10 +62,12 @@ pub enum MpvCommand {
     Unobserve(isize),
 }
 
+/// Helper trait to keep track of the string literals that mpv expects.
 pub(crate) trait IntoRawCommandPart {
     fn into_raw_command_part(self) -> String;
 }
 
+/// Generic data type representing all possible data types that mpv can return.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MpvDataType {
     Array(Vec<MpvDataType>),
@@ -66,6 +80,20 @@ pub enum MpvDataType {
     Usize(usize),
 }
 
+/// A mpv playlist.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Playlist(pub Vec<PlaylistEntry>);
+
+/// A single entry in the mpv playlist.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlaylistEntry {
+    pub id: usize,
+    pub filename: String,
+    pub title: String,
+    pub current: bool,
+}
+
+/// Options for [`MpvCommand::LoadFile`] and [`MpvCommand::LoadList`].
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum PlaylistAddOptions {
     Replace,
@@ -81,12 +109,7 @@ impl IntoRawCommandPart for PlaylistAddOptions {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum PlaylistAddTypeOptions {
-    File,
-    Playlist,
-}
-
+/// Options for [`MpvCommand::Seek`].
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum SeekOptions {
     Relative,
@@ -106,17 +129,7 @@ impl IntoRawCommandPart for SeekOptions {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PlaylistEntry {
-    pub id: usize,
-    pub filename: String,
-    pub title: String,
-    pub current: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Playlist(pub Vec<PlaylistEntry>);
-
+/// A trait for specifying how to extract and parse a value returned through [`Mpv::get_property`].
 pub trait GetPropertyTypeHandler: Sized {
     // TODO: fix this
     #[allow(async_fn_in_trait)]
@@ -135,6 +148,7 @@ where
     }
 }
 
+/// A trait for specifying how to serialize and set a value through [`Mpv::set_property`].
 pub trait SetPropertyTypeHandler<T> {
     // TODO: fix this
     #[allow(async_fn_in_trait)]
@@ -169,6 +183,14 @@ where
     }
 }
 
+/// The main struct for interacting with mpv.
+///
+/// This struct provides the core API for interacting with mpv.
+/// These functions are the building blocks for the higher-level API provided by the `MpvExt` trait.
+/// They can also be used directly to interact with mpv in a more flexible way, mostly returning JSON values.
+///
+/// The `Mpv` struct can be cloned freely, and shared anywhere.
+/// It only contains a message passing channel to the tokio task that handles the IPC communication with mpv.
 #[derive(Clone)]
 pub struct Mpv {
     command_sender: mpsc::Sender<(MpvIpcCommand, oneshot::Sender<MpvIpcResponse>)>,
@@ -226,7 +248,7 @@ impl Mpv {
     pub async fn get_event_stream(&self) -> impl futures::Stream<Item = Result<Event, Error>> {
         tokio_stream::wrappers::BroadcastStream::new(self.broadcast_channel.subscribe()).map(
             |event| match event {
-                Ok(event) => crate::event_parser::map_event(event),
+                Ok(event) => crate::event_parser::parse_event(event),
                 Err(_) => Err(Error(ErrorCode::ConnectError(
                     "Failed to receive event".to_string(),
                 ))),
@@ -281,7 +303,7 @@ impl Mpv {
     /// ## Input arguments
     ///
     /// - **command**   defines the mpv command that should be executed
-    /// - **args**      a slice of &str's which define the arguments
+    /// - **args**      a slice of `&str`'s which define the arguments
     ///
     /// # Example
     /// ```
@@ -405,12 +427,12 @@ impl Mpv {
     /// Retrieves the property value from mpv.
     ///
     /// ## Supported types
-    /// - String
-    /// - bool
-    /// - HashMap<String, String> (e.g. for the 'metadata' property)
-    /// - Vec<PlaylistEntry> (for the 'playlist' property)
-    /// - usize
-    /// - f64
+    /// - `String`
+    /// - `bool`
+    /// - `HashMap<String, String>` (e.g. for the 'metadata' property)
+    /// - `Vec<PlaylistEntry>` (for the 'playlist' property)
+    /// - `usize`
+    /// - `f64`
     ///
     /// ## Input arguments
     ///
@@ -472,18 +494,18 @@ impl Mpv {
 
     /// # Description
     ///
-    /// Sets the mpv property _<property>_ to _<value>_.
+    /// Sets the mpv property _`<property>`_ to _`<value>`_.
     ///
     /// ## Supported types
-    /// - String
-    /// - bool
-    /// - f64
-    /// - usize
+    /// - `String`
+    /// - `bool`
+    /// - `f64`
+    /// - `usize`
     ///
     /// ## Input arguments
     ///
     /// - **property** defines the mpv property that should be retrieved
-    /// - **value** defines the value of the given mpv property _<property>_
+    /// - **value** defines the value of the given mpv property _`<property>`_
     ///
     /// # Example
     /// ```

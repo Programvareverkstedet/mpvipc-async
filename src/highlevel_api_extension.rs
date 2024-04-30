@@ -1,10 +1,13 @@
+//! High-level API extension for [`Mpv`].
+
 use crate::{
     Error, IntoRawCommandPart, Mpv, MpvCommand, MpvDataType, Playlist, PlaylistAddOptions,
-    PlaylistAddTypeOptions, PlaylistEntry, SeekOptions,
+    PlaylistEntry, SeekOptions,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Generic high-level command for changing a number property.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum NumberChangeOptions {
     Absolute,
@@ -22,6 +25,7 @@ impl IntoRawCommandPart for NumberChangeOptions {
     }
 }
 
+/// Generic high-level switch for toggling boolean properties.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Switch {
     On,
@@ -29,7 +33,14 @@ pub enum Switch {
     Toggle,
 }
 
-/// The `MpvExt` trait provides a set of typesafe high-level functions to interact with mpv.
+/// Options for [`MpvExt::playlist_add`].
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum PlaylistAddTypeOptions {
+    File,
+    Playlist,
+}
+
+/// A set of typesafe high-level functions to interact with [`Mpv`].
 // TODO: fix this
 #[allow(async_fn_in_trait)]
 pub trait MpvExt {

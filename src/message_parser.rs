@@ -1,3 +1,5 @@
+//! JSON parsing logic for command responses from [`MpvIpc`](crate::ipc::MpvIpc).
+
 use std::collections::HashMap;
 
 use serde_json::Value;

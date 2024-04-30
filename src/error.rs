@@ -1,8 +1,11 @@
+//! Library specific error messages.
+
 use core::fmt;
 use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
 
+/// All possible errors that can occur when interacting with mpv.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorCode {
     MpvError(String),
@@ -21,6 +24,7 @@ pub enum ErrorCode {
     ValueDoesNotContainUsize,
 }
 
+/// Any error that can occur when interacting with mpv.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Error(pub ErrorCode);
 

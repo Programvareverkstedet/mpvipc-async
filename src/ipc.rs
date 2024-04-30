@@ -1,19 +1,28 @@
-use super::*;
+//! IPC handling thread/task. Handles communication between [`Mpv`](crate::Mpv) instances and mpv's unix socket
+
 use futures::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use std::mem;
-use tokio::net::UnixStream;
-use tokio::sync::mpsc;
-use tokio::sync::{broadcast, oneshot, Mutex};
+use tokio::{
+    net::UnixStream,
+    sync::{broadcast, mpsc, oneshot, Mutex},
+};
 use tokio_util::codec::{Framed, LinesCodec, LinesCodecError};
 
+use crate::{Error, ErrorCode};
+
+/// Container for all state that regards communication with the mpv IPC socket
+/// and message passing with [`Mpv`](crate::Mpv) controllers.
 pub(crate) struct MpvIpc {
     socket: Framed<UnixStream, LinesCodec>,
-    command_channel: mpsc::Receiver<(MpvIpcCommand, oneshot::Sender<MpvIpcResponse>)>,
+    // I had trouble with reading and writing to the socket when it was wrapped
+    // in a MutexGuard, so I'm using a separate Mutex to lock the socket when needed.
     socket_lock: Mutex<()>,
+    command_channel: mpsc::Receiver<(MpvIpcCommand, oneshot::Sender<MpvIpcResponse>)>,
     event_channel: broadcast::Sender<MpvIpcEvent>,
 }
 
+/// Commands that can be sent to [`MpvIpc`]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum MpvIpcCommand {
     Command(Vec<String>),
@@ -24,9 +33,11 @@ pub(crate) enum MpvIpcCommand {
     Exit,
 }
 
+/// [`MpvIpc`]'s response to a [`MpvIpcCommand`].
 #[derive(Debug, Clone)]
 pub(crate) struct MpvIpcResponse(pub(crate) Result<Option<Value>, Error>);
 
+/// A deserialized and partially parsed event from mpv.
 #[derive(Debug, Clone)]
 pub(crate) struct MpvIpcEvent(pub(crate) Value);
 
@@ -88,10 +99,6 @@ impl MpvIpc {
         property: &str,
         value: Value,
     ) -> Result<Option<Value>, Error> {
-        // let str_value = match &value {
-        //     Value::String(s) => s,
-        //     v => &serde_json::to_string(&v).unwrap(),
-        // };
         self.send_command(&[json!("set_property"), json!(property), value])
             .await
     }
@@ -177,6 +184,9 @@ impl MpvIpc {
     }
 }
 
+/// This function does the most basic JSON parsing and error handling
+/// for status codes and errors that all responses from mpv are
+/// expected to contain.
 fn parse_mpv_response_data(value: Value) -> Result<Option<Value>, Error> {
     log::trace!("Parsing mpv response data: {:?}", value);
     let result = value
