@@ -26,9 +26,10 @@
     devShell = forAllSystems (system: pkgs: toolchain: pkgs.mkShell {
       packages = [
         (toolchain.withComponents [
-          "cargo" "rustc" "rustfmt" "clippy"
+          "cargo" "rustc" "rustfmt" "clippy" "llvm-tools"
         ])
         pkgs.mpv
+        pkgs.grcov
       ];
       RUST_SRC_PATH = "${toolchain.rust-src}/lib/rustlib/src/rust/";
     });
