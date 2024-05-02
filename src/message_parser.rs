@@ -91,45 +91,36 @@ impl TypeHandler for Vec<PlaylistEntry> {
     }
 }
 
+pub(crate) fn json_to_value(value: &Value) -> Result<MpvDataType, Error> {
+    match value {
+        Value::Array(array) => Ok(MpvDataType::Array(json_array_to_vec(array))),
+        Value::Bool(b) => Ok(MpvDataType::Bool(*b)),
+        Value::Number(n) => {
+            if n.is_i64() && n.as_i64().unwrap() == -1 {
+                Ok(MpvDataType::MinusOne)
+            } else if n.is_u64() {
+                Ok(MpvDataType::Usize(n.as_u64().unwrap() as usize))
+            } else if n.is_f64() {
+                Ok(MpvDataType::Double(n.as_f64().unwrap()))
+            } else {
+                // TODO: proper error handling
+                panic!("Unexpected number type");
+            }
+        }
+        Value::Object(map) => Ok(MpvDataType::HashMap(json_map_to_hashmap(map))),
+        Value::String(s) => Ok(MpvDataType::String(s.to_string())),
+        Value::Null => Ok(MpvDataType::Null),
+    }
+}
+
 pub(crate) fn json_map_to_hashmap(
     map: &serde_json::map::Map<String, Value>,
 ) -> HashMap<String, MpvDataType> {
     let mut output_map: HashMap<String, MpvDataType> = HashMap::new();
     for (ref key, value) in map.iter() {
-        match *value {
-            Value::Array(ref array) => {
-                output_map.insert(
-                    key.to_string(),
-                    MpvDataType::Array(json_array_to_vec(array)),
-                );
-            }
-            Value::Bool(ref b) => {
-                output_map.insert(key.to_string(), MpvDataType::Bool(*b));
-            }
-            Value::Number(ref n) => {
-                if n.is_u64() {
-                    output_map.insert(
-                        key.to_string(),
-                        MpvDataType::Usize(n.as_u64().unwrap() as usize),
-                    );
-                } else if n.is_f64() {
-                    output_map.insert(key.to_string(), MpvDataType::Double(n.as_f64().unwrap()));
-                } else {
-                    panic!("unimplemented number");
-                }
-            }
-            Value::String(ref s) => {
-                output_map.insert(key.to_string(), MpvDataType::String(s.to_string()));
-            }
-            Value::Object(ref m) => {
-                output_map.insert(
-                    key.to_string(),
-                    MpvDataType::HashMap(json_map_to_hashmap(m)),
-                );
-            }
-            Value::Null => {
-                unimplemented!();
-            }
+        // TODO: proper error handling
+        if let Ok(value) = json_to_value(value) {
+            output_map.insert(key.to_string(), value);
         }
     }
     output_map
@@ -138,24 +129,8 @@ pub(crate) fn json_map_to_hashmap(
 pub(crate) fn json_array_to_vec(array: &[Value]) -> Vec<MpvDataType> {
     array
         .iter()
-        .map(|entry| match entry {
-            Value::Array(a) => MpvDataType::Array(json_array_to_vec(a)),
-            Value::Bool(b) => MpvDataType::Bool(*b),
-            Value::Number(n) => {
-                if n.is_u64() {
-                    MpvDataType::Usize(n.as_u64().unwrap() as usize)
-                } else if n.is_f64() {
-                    MpvDataType::Double(n.as_f64().unwrap())
-                } else {
-                    panic!("unimplemented number");
-                }
-            }
-            Value::Object(ref o) => MpvDataType::HashMap(json_map_to_hashmap(o)),
-            Value::String(s) => MpvDataType::String(s.to_owned()),
-            Value::Null => {
-                unimplemented!();
-            }
-        })
+        // TODO: proper error handling
+        .filter_map(|entry| json_to_value(entry).ok())
         .collect()
 }
 
@@ -198,6 +173,8 @@ mod test {
             "bool": true,
             "double": 1.0,
             "usize": 1,
+            "minus_one": -1,
+            "null": null,
             "string": "string",
             "object": {
                 "key": "value"
@@ -216,6 +193,8 @@ mod test {
         expected.insert("bool".to_string(), MpvDataType::Bool(true));
         expected.insert("double".to_string(), MpvDataType::Double(1.0));
         expected.insert("usize".to_string(), MpvDataType::Usize(1));
+        expected.insert("minus_one".to_string(), MpvDataType::MinusOne);
+        expected.insert("null".to_string(), MpvDataType::Null);
         expected.insert(
             "string".to_string(),
             MpvDataType::String("string".to_string()),
@@ -232,24 +211,14 @@ mod test {
     }
 
     #[test]
-    #[should_panic]
-    fn test_json_map_to_hashmap_fail_on_null() {
-        json_map_to_hashmap(
-            json!({
-                "null": null
-            })
-            .as_object()
-            .unwrap(),
-        );
-    }
-
-    #[test]
     fn test_json_array_to_vec() {
         let json = json!([
             [1, 2, 3],
             true,
             1.0,
             1,
+            -1,
+            null,
             "string",
             {
                 "key": "value"
@@ -268,6 +237,8 @@ mod test {
             MpvDataType::Bool(true),
             MpvDataType::Double(1.0),
             MpvDataType::Usize(1),
+            MpvDataType::MinusOne,
+            MpvDataType::Null,
             MpvDataType::String("string".to_string()),
             MpvDataType::HashMap(HashMap::from([(
                 "key".to_string(),
@@ -276,12 +247,6 @@ mod test {
         ];
 
         assert_eq!(json_array_to_vec(json.as_array().unwrap()), expected);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_json_array_to_vec_fail_on_null() {
-        json_array_to_vec(json!([null]).as_array().unwrap().as_slice());
     }
 
     #[test]

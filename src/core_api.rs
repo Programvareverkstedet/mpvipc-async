@@ -75,6 +75,7 @@ pub enum MpvDataType {
     Double(f64),
     HashMap(HashMap<String, MpvDataType>),
     Null,
+    MinusOne,
     Playlist(Playlist),
     String(String),
     Usize(usize),

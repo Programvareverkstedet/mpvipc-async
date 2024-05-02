@@ -1,13 +1,11 @@
 use std::panic;
 
 use futures::{stream::StreamExt, SinkExt};
-use mpvipc::{Mpv, MpvDataType, MpvExt, Property};
+use mpvipc::{parse_event_property, Mpv, MpvDataType, MpvExt, Property};
 use serde_json::json;
 use test_log::test;
 use tokio::{net::UnixStream, task::JoinHandle};
 use tokio_util::codec::{Framed, LinesCodec, LinesCodecError};
-
-use mpvipc::Event;
 
 fn test_socket(
     answers: Vec<(bool, String)>,
@@ -53,19 +51,13 @@ async fn test_observe_event_successful() {
     tokio::spawn(async move {
         let event = mpv2.get_event_stream().await.next().await.unwrap().unwrap();
 
-        let property = match event {
-            Event::PropertyChange { id, property } => {
-                assert_eq!(id, 1);
-                property
-            }
-            err => panic!("{:?}", err),
-        };
-        let data = match property {
-            Property::Unknown { name, data } => {
+        let data = match parse_event_property(event) {
+            Ok((_, Property::Unknown { name, data })) => {
                 assert_eq!(name, "volume");
                 data
             }
-            err => panic!("{:?}", err),
+            Ok((_, property)) => panic!("{:?}", property),
+            Err(err) => panic!("{:?}", err),
         };
         match data {
             MpvDataType::Double(data) => assert_eq!(data, 64.0),

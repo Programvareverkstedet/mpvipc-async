@@ -73,11 +73,9 @@ async fn test_events() {
     let event_checking_thread = tokio::spawn(async move {
         loop {
             let event = events.next().await.unwrap().unwrap();
-            if let mpvipc::Event::PropertyChange { id, property } = event {
-                if id == 1337 {
-                    assert_eq!(property, mpvipc::Property::Pause(true));
-                    break;
-                }
+            if let (1337, property) = mpvipc::parse_event_property(event).unwrap() {
+                assert_eq!(property, mpvipc::Property::Pause(true));
+                break;
             }
         }
     });
@@ -86,11 +84,12 @@ async fn test_events() {
 
     mpv.set_property("pause", true).await.unwrap();
 
-    if let Err(_) = tokio::time::timeout(
+    if tokio::time::timeout(
         tokio::time::Duration::from_millis(500),
         event_checking_thread,
     )
     .await
+    .is_err()
     {
         panic!("Event checking thread timed out");
     }

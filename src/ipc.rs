@@ -51,9 +51,6 @@ impl MpvIpc {
     }
 
     pub(crate) async fn send_command(&mut self, command: &[Value]) -> Result<Option<Value>, Error> {
-        // let lock = self.socket_lock.lock().await;
-        // START CRITICAL SECTION
-
         let ipc_command = json!({ "command": command });
         let ipc_command_str = serde_json::to_string(&ipc_command)
             .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))?;
@@ -87,8 +84,6 @@ impl MpvIpc {
                 break parsed_response;
             }
         };
-        // END CRITICAL SECTION
-        // mem::drop(lock);
 
         log::trace!("Received response: {:?}", response);
 
