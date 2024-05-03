@@ -63,32 +63,16 @@ jobs:
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Create necessary directories
-        run: mkdir -p target/test-report
+      - name: Install nextest
+        run: cargo binstall -y cargo-nextest --secure
 
       - name: Run tests
         run: |
-          cargo test --all-features --release --no-fail-fast -- -Zunstable-options --format json --report-time \
-            | tee target/test-report/test-report.json
+          cargo nextest run --all-features --release --no-fail-fast
         env:
+          RUST_LOG: "trace"
           RUSTFLAGS: "-Cinstrument-coverage"
           LLVM_PROFILE_FILE: "target/coverage/%p-%m.profraw"
-
-      - name: Install markdown-test-report
-        run: cargo binstall -y markdown-test-report
-
-      - name: Generate test report
-        run: markdown-test-report target/test-report/test-report.json --output target/test-report/test-report.md
-
-      - name: Upload test report
-        uses: https://git.pvv.ntnu.no/oysteikt/rsync-action@main
-        with:
-          source: target/test-report/test-report.md
-          target: mpvipc/${{ gitea.ref_name }}/
-          username: oysteikt
-          ssh-key: ${{ secrets.OYSTEIKT_GITEA_WEBDOCS_SSH_KEY }}
-          host: microbel.pvv.ntnu.no
-          known-hosts: "microbel.pvv.ntnu.no ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEq0yasKP0mH6PI6ypmuzPzMnbHELo9k+YB5yW534aKudKZS65YsHJKQ9vapOtmegrn5MQbCCgrshf+/XwZcjbM="
 
       - name: Install grcov
         run: cargo binstall -y grcov

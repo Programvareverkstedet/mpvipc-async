@@ -3,7 +3,7 @@ rm -rf target/coverage || true
 mkdir -p target/coverage
 
 echo "Running tests"
-RUST_LOG=mpvipc=trace RUSTFLAGS="-Cinstrument-coverage" LLVM_PROFILE_FILE="target/coverage/%p-%m.profraw" cargo test --all-features --release --no-fail-fast
+RUST_LOG=mpvipc=trace RUSTFLAGS="-Cinstrument-coverage" LLVM_PROFILE_FILE="target/coverage/%p-%m.profraw" cargo nextest run --all-features --release --no-fail-fast
 
 echo "Generating coverage report"
 grcov \
