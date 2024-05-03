@@ -34,7 +34,7 @@ pub enum Property {
     Speed(f64),
     Volume(f64),
     Mute(bool),
-    Unknown { name: String, data: MpvDataType },
+    Unknown { name: String, data: Option<MpvDataType> },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -58,34 +58,40 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
     match name.as_str() {
         "path" => {
             let path = match data {
-                MpvDataType::String(s) => Some(s),
-                MpvDataType::Null => None,
-                _ => {
+                Some(MpvDataType::String(s)) => Some(s),
+                Some(MpvDataType::Null) => None,
+                Some(data) => {
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "String".to_owned(),
                         received: data,
                     })
+                }
+                None => {
+                    return Err(MpvError::MissingMpvData);
                 }
             };
             Ok((id, Property::Path(path)))
         }
         "pause" => {
             let pause = match data {
-                MpvDataType::Bool(b) => b,
-                _ => {
+                Some(MpvDataType::Bool(b)) => b,
+                Some(data) => {
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "bool".to_owned(),
                         received: data,
                     })
+                }
+                None => {
+                    return Err(MpvError::MissingMpvData);
                 }
             };
             Ok((id, Property::Pause(pause)))
         }
         "playback-time" => {
             let playback_time = match data {
-                MpvDataType::Double(d) => Some(d),
-                MpvDataType::Null => None,
-                _ => {
+                Some(MpvDataType::Double(d)) => Some(d),
+                None | Some(MpvDataType::Null) => None,
+                Some(data) => {
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "f64".to_owned(),
                         received: data,
@@ -96,9 +102,9 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
         }
         "duration" => {
             let duration = match data {
-                MpvDataType::Double(d) => Some(d),
-                MpvDataType::Null => None,
-                _ => {
+                Some(MpvDataType::Double(d)) => Some(d),
+                None | Some(MpvDataType::Null) => None,
+                Some(data) => {
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "f64".to_owned(),
                         received: data,
@@ -109,9 +115,9 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
         }
         "metadata" => {
             let metadata = match data {
-                MpvDataType::HashMap(m) => Some(m),
-                MpvDataType::Null => None,
-                _ => {
+                Some(MpvDataType::HashMap(m)) => Some(m),
+                None | Some(MpvDataType::Null) => None,
+                Some(data) => {
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "HashMap".to_owned(),
                         received: data,
@@ -130,10 +136,11 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
         // }
         "playlist-pos" => {
             let playlist_pos = match data {
-                MpvDataType::Usize(u) => Some(u),
-                MpvDataType::MinusOne => None,
-                MpvDataType::Null => None,
-                _ => {
+                Some(MpvDataType::Usize(u)) => Some(u),
+                Some(MpvDataType::MinusOne) => None,
+                Some(MpvDataType::Null) => None,
+                None => None,
+                Some(data) => {
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "usize or -1".to_owned(),
                         received: data,
@@ -144,75 +151,90 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
         }
         "loop-file" => {
             let loop_file = match data.to_owned() {
-                MpvDataType::Usize(n) => Some(LoopProperty::N(n)),
-                MpvDataType::Bool(b) => match b {
+                Some(MpvDataType::Usize(n)) => Some(LoopProperty::N(n)),
+                Some(MpvDataType::Bool(b)) => match b {
                     true => Some(LoopProperty::Inf),
                     false => Some(LoopProperty::No),
                 },
-                MpvDataType::String(s) => match s.as_str() {
+                Some(MpvDataType::String(s)) => match s.as_str() {
                     "inf" => Some(LoopProperty::Inf),
                     _ => None,
                 },
                 _ => None,
             }
-            .ok_or(MpvError::DataContainsUnexpectedType {
-                expected_type: "'inf', bool, or usize".to_owned(),
-                received: data,
+            .ok_or(match data {
+                Some(data) => MpvError::DataContainsUnexpectedType {
+                    expected_type: "'inf', bool, or usize".to_owned(),
+                    received: data,
+                },
+                None => MpvError::MissingMpvData,
             })?;
             Ok((id, Property::LoopFile(loop_file)))
         }
         "loop-playlist" => {
             let loop_playlist = match data.to_owned() {
-                MpvDataType::Usize(n) => Some(LoopProperty::N(n)),
-                MpvDataType::Bool(b) => match b {
+                Some(MpvDataType::Usize(n)) => Some(LoopProperty::N(n)),
+                Some(MpvDataType::Bool(b)) => match b {
                     true => Some(LoopProperty::Inf),
                     false => Some(LoopProperty::No),
                 },
-                MpvDataType::String(s) => match s.as_str() {
+                Some(MpvDataType::String(s)) => match s.as_str() {
                     "inf" => Some(LoopProperty::Inf),
                     _ => None,
                 },
                 _ => None,
             }
-            .ok_or(MpvError::DataContainsUnexpectedType {
-                expected_type: "'inf', bool, or usize".to_owned(),
-                received: data,
+            .ok_or(match data {
+                Some(data) => MpvError::DataContainsUnexpectedType {
+                    expected_type: "'inf', bool, or usize".to_owned(),
+                    received: data,
+                },
+                None => MpvError::MissingMpvData,
             })?;
 
             Ok((id, Property::LoopPlaylist(loop_playlist)))
         }
         "speed" => {
             let speed = match data {
-                MpvDataType::Double(d) => d,
-                _ => {
+                Some(MpvDataType::Double(d)) => d,
+                Some(data) => {
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "f64".to_owned(),
                         received: data,
                     })
+                }
+                None => {
+                    return Err(MpvError::MissingMpvData);
                 }
             };
             Ok((id, Property::Speed(speed)))
         }
         "volume" => {
             let volume = match data {
-                MpvDataType::Double(d) => d,
-                _ => {
+                Some(MpvDataType::Double(d)) => d,
+                Some(data) => {
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "f64".to_owned(),
                         received: data,
                     })
+                }
+                None => {
+                    return Err(MpvError::MissingMpvData);
                 }
             };
             Ok((id, Property::Volume(volume)))
         }
         "mute" => {
             let mute = match data {
-                MpvDataType::Bool(b) => b,
-                _ => {
+                Some(MpvDataType::Bool(b)) => b,
+                Some(data) => {
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "bool".to_owned(),
                         received: data,
                     })
+                }
+                None => {
+                    return Err(MpvError::MissingMpvData);
                 }
             };
             Ok((id, Property::Mute(mute)))

@@ -60,8 +60,9 @@ async fn test_observe_event_successful() {
             Err(err) => panic!("{:?}", err),
         };
         match data {
-            MpvDataType::Double(data) => assert_eq!(data, 64.0),
-            err => panic!("{:?}", err),
+            Some(MpvDataType::Double(data)) => assert_eq!(data, 64.0),
+            Some(data) => panic!("Unexpected value: {:?}", data),
+            None => panic!("No data"),
         }
     });
 

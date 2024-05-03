@@ -111,7 +111,7 @@ pub enum Event {
     PropertyChange {
         id: usize,
         name: String,
-        data: MpvDataType,
+        data: Option<MpvDataType>,
     },
     EventQueueOverflow,
     None,
@@ -292,17 +292,11 @@ fn parse_client_message(event: &Map<String, Value>) -> Result<Event, MpvError> {
 fn parse_property_change(event: &Map<String, Value>) -> Result<Event, MpvError> {
     let id = get_key_as!(as_u64, "id", event) as usize;
     let property_name = get_key_as!(as_str, "name", event);
-    let data = event
-        .get("data")
-        .ok_or(MpvError::MissingKeyInObject {
-            key: "data".to_owned(),
-            map: event.clone(),
-        })?
-        .clone();
+    let data = event.get("data").map(|d| json_to_value(d)).transpose()?;
 
     Ok(Event::PropertyChange {
         id,
         name: property_name.to_string(),
-        data: json_to_value(&data)?,
+        data: data,
     })
 }
