@@ -1,7 +1,7 @@
 use std::{panic, time::Duration};
 
 use futures::{stream::FuturesUnordered, SinkExt, StreamExt};
-use mpvipc::{Error, ErrorCode, Mpv, MpvExt, Playlist, PlaylistEntry};
+use mpvipc::{MpvError, Mpv, MpvExt, Playlist, PlaylistEntry};
 use serde_json::{json, Value};
 use test_log::test;
 use tokio::{net::UnixStream, task::JoinHandle};
@@ -41,12 +41,12 @@ async fn test_set_property_broken_pipe() {
     let mpv = Mpv::connect_socket(server).await.unwrap();
     let maybe_set_volume = mpv.set_property("volume", 64.0).await;
 
-    assert_eq!(
-        maybe_set_volume,
-        Err(Error(ErrorCode::ConnectError(
-            "Broken pipe (os error 32)".to_owned()
-        )))
-    );
+    match maybe_set_volume {
+        Err(MpvError::MpvSocketConnectionError(err)) => {
+            assert_eq!(err.to_string(), "Broken pipe (os error 32)");
+        }
+        _ => panic!("Unexpected result: {:?}", maybe_set_volume),
+    }
     join_handle.await.unwrap().unwrap();
 }
 
@@ -59,12 +59,12 @@ async fn test_set_property_wrong_type() {
     let mpv = Mpv::connect_socket(server).await.unwrap();
     let maybe_volume = mpv.set_property::<bool>("volume", true).await;
 
-    assert_eq!(
-        maybe_volume,
-        Err(Error(ErrorCode::MpvError(
-            "unsupported format for accessing property".to_owned()
-        )))
-    );
+    match maybe_volume {
+        Err(MpvError::MpvError(err)) => {
+            assert_eq!(err, "unsupported format for accessing property");
+        }
+        _ => panic!("Unexpected result: {:?}", maybe_volume),
+    }
     join_handle.await.unwrap().unwrap();
 }
 
@@ -77,10 +77,12 @@ async fn test_get_property_error() {
     let mpv = Mpv::connect_socket(server).await.unwrap();
     let maybe_volume = mpv.set_property("nonexistent", true).await;
 
-    assert_eq!(
-        maybe_volume,
-        Err(Error(ErrorCode::MpvError("property not found".to_owned())))
-    );
+    match maybe_volume {
+        Err(MpvError::MpvError(err)) => {
+            assert_eq!(err, "property not found");
+        }
+        _ => panic!("Unexpected result: {:?}", maybe_volume),
+    }
 
     join_handle.await.unwrap().unwrap();
 }
@@ -127,7 +129,10 @@ async fn test_set_property_simultaneous_requests() {
     let mpv_poller_1 = tokio::spawn(async move {
         loop {
             let status = mpv_clone_1.set_property("volume", 100).await;
-            assert_eq!(status, Ok(()));
+            match status {
+                Ok(()) => {},
+                _ => panic!("Unexpected result: {:?}", status),
+            }
         }
     });
 
@@ -136,7 +141,10 @@ async fn test_set_property_simultaneous_requests() {
         loop {
             tokio::time::sleep(Duration::from_millis(1)).await;
             let status = mpv_clone_2.set_property("pause", false).await;
-            assert_eq!(status, Ok(()));
+            match status {
+                Ok(()) => {},
+                _ => panic!("Unexpected result: {:?}", status),
+            }
         }
     });
 
@@ -145,10 +153,12 @@ async fn test_set_property_simultaneous_requests() {
         loop {
             tokio::time::sleep(Duration::from_millis(2)).await;
             let maybe_volume = mpv_clone_3.set_property("nonexistent", "a").await;
-            assert_eq!(
-                maybe_volume,
-                Err(Error(ErrorCode::MpvError("property not found".to_owned())))
-            );
+            match maybe_volume {
+                Err(MpvError::MpvError(err)) => {
+                    assert_eq!(err, "property not found");
+                }
+                _ => panic!("Unexpected result: {:?}", maybe_volume),
+            }
         }
     });
 

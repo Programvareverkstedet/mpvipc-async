@@ -1,4 +1,4 @@
-use mpvipc::{Error, Mpv, MpvExt};
+use mpvipc::{MpvError, Mpv, MpvExt};
 use std::path::Path;
 use tokio::{
     process::{Child, Command},
@@ -6,7 +6,7 @@ use tokio::{
 };
 
 #[cfg(target_family = "unix")]
-async fn spawn_headless_mpv() -> Result<(Child, Mpv), Error> {
+async fn spawn_headless_mpv() -> Result<(Child, Mpv), MpvError> {
     let socket_path_str = format!("/tmp/mpv-ipc-{}", uuid::Uuid::new_v4());
     let socket_path = Path::new(&socket_path_str);
 

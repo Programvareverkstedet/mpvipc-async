@@ -1,72 +1,46 @@
 //! Library specific error messages.
 
-use core::fmt;
-use std::fmt::Display;
+use thiserror::Error;
+use serde_json::{Map, Value};
 
-use serde::{Deserialize, Serialize};
-
-/// All possible errors that can occur when interacting with mpv.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ErrorCode {
-    MpvError(String),
-    JsonParseError(String),
-    ConnectError(String),
-    JsonContainsUnexptectedType,
-    UnexpectedResult,
-    UnexpectedValue,
-    MissingValue,
-    UnsupportedType,
-    ValueDoesNotContainBool,
-    ValueDoesNotContainF64,
-    ValueDoesNotContainHashMap,
-    ValueDoesNotContainPlaylist,
-    ValueDoesNotContainString,
-    ValueDoesNotContainUsize,
-}
+use crate::MpvDataType;
 
 /// Any error that can occur when interacting with mpv.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Error(pub ErrorCode);
+#[derive(Error, Debug)]
+pub enum MpvError {
+    #[error("MpvError: {0}")]
+    MpvError(String),
 
-impl Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        Display::fmt(&self.0, f)
-    }
-}
+    #[error("Error communicating over mpv socket: {0}")]
+    MpvSocketConnectionError(String),
 
-impl std::error::Error for Error {}
+    #[error("Internal connection error: {0}")]
+    InternalConnectionError(String),
 
-impl Display for ErrorCode {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ErrorCode::ConnectError(ref msg) => f.write_str(&format!("ConnectError: {}", msg)),
-            ErrorCode::JsonParseError(ref msg) => f.write_str(&format!("JsonParseError: {}", msg)),
-            ErrorCode::MpvError(ref msg) => f.write_str(&format!("MpvError: {}", msg)),
-            ErrorCode::JsonContainsUnexptectedType => {
-                f.write_str("Mpv sent a value with an unexpected type")
-            }
-            ErrorCode::UnexpectedResult => f.write_str("Unexpected result received"),
-            ErrorCode::UnexpectedValue => f.write_str("Unexpected value received"),
-            ErrorCode::MissingValue => f.write_str("Missing value"),
-            ErrorCode::UnsupportedType => f.write_str("Unsupported type received"),
-            ErrorCode::ValueDoesNotContainBool => {
-                f.write_str("The received value is not of type \'std::bool\'")
-            }
-            ErrorCode::ValueDoesNotContainF64 => {
-                f.write_str("The received value is not of type \'std::f64\'")
-            }
-            ErrorCode::ValueDoesNotContainHashMap => {
-                f.write_str("The received value is not of type \'std::collections::HashMap\'")
-            }
-            ErrorCode::ValueDoesNotContainPlaylist => {
-                f.write_str("The received value is not of type \'mpvipc::Playlist\'")
-            }
-            ErrorCode::ValueDoesNotContainString => {
-                f.write_str("The received value is not of type \'std::string::String\'")
-            }
-            ErrorCode::ValueDoesNotContainUsize => {
-                f.write_str("The received value is not of type \'std::usize\'")
-            }
-        }
-    }
+    #[error("JsonParseError: {0}")]
+    JsonParseError(#[from] serde_json::Error),
+
+    #[error("Mpv sent a value with an unexpected type:\nExpected {expected_type}, received {received:#?}")]
+    ValueContainsUnexpectedType {
+      expected_type: String,
+      received: Value,
+    },
+
+    #[error("Mpv sent data with an unexpected type:\nExpected {expected_type}, received {received:#?}")]
+    DataContainsUnexpectedType {
+      expected_type: String,
+      received: MpvDataType,
+    },
+
+    #[error("Missing expected 'data' field in mpv message")]
+    MissingMpvData,
+
+    #[error("Missing key in object:\nExpected {key} in {map:#?}")]
+    MissingKeyInObject {
+      key: String,
+      map: Map<String, Value>,
+    },
+
+    #[error("Unknown error: {0}")]
+    Other(String),
 }

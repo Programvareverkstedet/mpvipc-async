@@ -1,4 +1,4 @@
-use mpvipc::{Error as MpvError, Mpv, MpvExt};
+use mpvipc::{MpvError, Mpv, MpvExt};
 
 #[tokio::main]
 async fn main() -> Result<(), MpvError> {

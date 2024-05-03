@@ -12,7 +12,7 @@ use tokio::{
 use crate::{
     ipc::{MpvIpc, MpvIpcCommand, MpvIpcEvent, MpvIpcResponse},
     message_parser::TypeHandler,
-    Error, ErrorCode, Event,
+    Event, MpvError,
 };
 
 /// All possible commands that can be sent to mpv.
@@ -134,14 +134,14 @@ impl IntoRawCommandPart for SeekOptions {
 pub trait GetPropertyTypeHandler: Sized {
     // TODO: fix this
     #[allow(async_fn_in_trait)]
-    async fn get_property_generic(instance: &Mpv, property: &str) -> Result<Self, Error>;
+    async fn get_property_generic(instance: &Mpv, property: &str) -> Result<Self, MpvError>;
 }
 
 impl<T> GetPropertyTypeHandler for T
 where
     T: TypeHandler,
 {
-    async fn get_property_generic(instance: &Mpv, property: &str) -> Result<T, Error> {
+    async fn get_property_generic(instance: &Mpv, property: &str) -> Result<T, MpvError> {
         instance
             .get_property_value(property)
             .await
@@ -153,17 +153,22 @@ where
 pub trait SetPropertyTypeHandler<T> {
     // TODO: fix this
     #[allow(async_fn_in_trait)]
-    async fn set_property_generic(instance: &Mpv, property: &str, value: T) -> Result<(), Error>;
+    async fn set_property_generic(instance: &Mpv, property: &str, value: T)
+        -> Result<(), MpvError>;
 }
 
 impl<T> SetPropertyTypeHandler<T> for T
 where
     T: Serialize,
 {
-    async fn set_property_generic(instance: &Mpv, property: &str, value: T) -> Result<(), Error> {
+    async fn set_property_generic(
+        instance: &Mpv,
+        property: &str,
+        value: T,
+    ) -> Result<(), MpvError> {
         let (res_tx, res_rx) = oneshot::channel();
-        let value = serde_json::to_value(value)
-            .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))?;
+        let value = serde_json::to_value(value).map_err(|why| MpvError::JsonParseError(why))?;
+
         instance
             .command_sender
             .send((
@@ -171,15 +176,11 @@ where
                 res_tx,
             ))
             .await
-            .map_err(|_| {
-                Error(ErrorCode::ConnectError(
-                    "Failed to send command".to_string(),
-                ))
-            })?;
+            .map_err(|err| MpvError::InternalConnectionError(err.to_string()))?;
 
         match res_rx.await {
             Ok(MpvIpcResponse(response)) => response.map(|_| ()),
-            Err(err) => Err(Error(ErrorCode::ConnectError(err.to_string()))),
+            Err(err) => Err(MpvError::InternalConnectionError(err.to_string())),
         }
     }
 }
@@ -205,18 +206,18 @@ impl fmt::Debug for Mpv {
 }
 
 impl Mpv {
-    pub async fn connect(socket_path: &str) -> Result<Mpv, Error> {
+    pub async fn connect(socket_path: &str) -> Result<Mpv, MpvError> {
         log::debug!("Connecting to mpv socket at {}", socket_path);
 
         let socket = match UnixStream::connect(socket_path).await {
             Ok(stream) => Ok(stream),
-            Err(internal_error) => Err(Error(ErrorCode::ConnectError(internal_error.to_string()))),
+            Err(err) => Err(MpvError::MpvSocketConnectionError(err.to_string())),
         }?;
 
         Self::connect_socket(socket).await
     }
 
-    pub async fn connect_socket(socket: UnixStream) -> Result<Mpv, Error> {
+    pub async fn connect_socket(socket: UnixStream) -> Result<Mpv, MpvError> {
         let (com_tx, com_rx) = mpsc::channel(100);
         let (ev_tx, _) = broadcast::channel(100);
         let ipc = MpvIpc::new(socket, com_rx, ev_tx.clone());
@@ -230,29 +231,24 @@ impl Mpv {
         })
     }
 
-    pub async fn disconnect(&self) -> Result<(), Error> {
+    pub async fn disconnect(&self) -> Result<(), MpvError> {
         let (res_tx, res_rx) = oneshot::channel();
         self.command_sender
             .send((MpvIpcCommand::Exit, res_tx))
             .await
-            .map_err(|_| {
-                Error(ErrorCode::ConnectError(
-                    "Failed to send command".to_string(),
-                ))
-            })?;
+            .map_err(|err| MpvError::InternalConnectionError(err.to_string()))?;
+
         match res_rx.await {
             Ok(MpvIpcResponse(response)) => response.map(|_| ()),
-            Err(err) => Err(Error(ErrorCode::ConnectError(err.to_string()))),
+            Err(err) => Err(MpvError::InternalConnectionError(err.to_string())),
         }
     }
 
-    pub async fn get_event_stream(&self) -> impl futures::Stream<Item = Result<Event, Error>> {
+    pub async fn get_event_stream(&self) -> impl futures::Stream<Item = Result<Event, MpvError>> {
         tokio_stream::wrappers::BroadcastStream::new(self.broadcast_channel.subscribe()).map(
             |event| match event {
                 Ok(event) => crate::event_parser::parse_event(event),
-                Err(_) => Err(Error(ErrorCode::ConnectError(
-                    "Failed to receive event".to_string(),
-                ))),
+                Err(err) => Err(MpvError::InternalConnectionError(err.to_string())),
             },
         )
     }
@@ -264,7 +260,7 @@ impl Mpv {
         &self,
         command: &str,
         args: &[&str],
-    ) -> Result<Option<Value>, Error> {
+    ) -> Result<Option<Value>, MpvError> {
         let command = Vec::from(
             [command]
                 .iter()
@@ -277,15 +273,11 @@ impl Mpv {
         self.command_sender
             .send((MpvIpcCommand::Command(command), res_tx))
             .await
-            .map_err(|_| {
-                Error(ErrorCode::ConnectError(
-                    "Failed to send command".to_string(),
-                ))
-            })?;
+            .map_err(|err| MpvError::InternalConnectionError(err.to_string()))?;
 
         match res_rx.await {
             Ok(MpvIpcResponse(response)) => response,
-            Err(err) => Err(Error(ErrorCode::ConnectError(err.to_string()))),
+            Err(err) => Err(MpvError::InternalConnectionError(err.to_string())),
         }
     }
 
@@ -293,7 +285,7 @@ impl Mpv {
         &self,
         command: &str,
         args: &[&str],
-    ) -> Result<(), Error> {
+    ) -> Result<(), MpvError> {
         self.run_command_raw(command, args).await.map(|_| ())
     }
 
@@ -323,7 +315,7 @@ impl Mpv {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn run_command(&self, command: MpvCommand) -> Result<(), Error> {
+    pub async fn run_command(&self, command: MpvCommand) -> Result<(), MpvError> {
         log::trace!("Running command: {:?}", command);
         let result = match command {
             MpvCommand::LoadFile { file, option } => {
@@ -345,15 +337,11 @@ impl Mpv {
                 self.command_sender
                     .send((MpvIpcCommand::ObserveProperty(id, property), res_tx))
                     .await
-                    .map_err(|_| {
-                        Error(ErrorCode::ConnectError(
-                            "Failed to send command".to_string(),
-                        ))
-                    })?;
+                    .map_err(|err| MpvError::InternalConnectionError(err.to_string()))?;
 
                 match res_rx.await {
                     Ok(MpvIpcResponse(response)) => response.map(|_| ()),
-                    Err(err) => Err(Error(ErrorCode::ConnectError(err.to_string()))),
+                    Err(err) => Err(MpvError::InternalConnectionError(err.to_string())),
                 }
             }
             MpvCommand::PlaylistClear => {
@@ -412,10 +400,11 @@ impl Mpv {
                 self.command_sender
                     .send((MpvIpcCommand::UnobserveProperty(id), res_tx))
                     .await
-                    .unwrap();
+                    .map_err(|err| MpvError::InternalConnectionError(err.to_string()))?;
+
                 match res_rx.await {
                     Ok(MpvIpcResponse(response)) => response.map(|_| ()),
-                    Err(err) => Err(Error(ErrorCode::ConnectError(err.to_string()))),
+                    Err(err) => Err(MpvError::InternalConnectionError(err.to_string())),
                 }
             }
         };
@@ -452,7 +441,7 @@ impl Mpv {
     pub async fn get_property<T: GetPropertyTypeHandler>(
         &self,
         property: &str,
-    ) -> Result<T, Error> {
+    ) -> Result<T, MpvError> {
         T::get_property_generic(self, property).await
     }
 
@@ -475,21 +464,18 @@ impl Mpv {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn get_property_value(&self, property: &str) -> Result<Value, Error> {
+    pub async fn get_property_value(&self, property: &str) -> Result<Value, MpvError> {
         let (res_tx, res_rx) = oneshot::channel();
         self.command_sender
             .send((MpvIpcCommand::GetProperty(property.to_owned()), res_tx))
             .await
-            .map_err(|_| {
-                Error(ErrorCode::ConnectError(
-                    "Failed to send command".to_string(),
-                ))
-            })?;
+            .map_err(|err| MpvError::InternalConnectionError(err.to_string()))?;
+
         match res_rx.await {
             Ok(MpvIpcResponse(response)) => {
-                response.and_then(|value| value.ok_or(Error(ErrorCode::MissingValue)))
+                response.and_then(|value| value.ok_or(MpvError::MissingMpvData))
             }
-            Err(err) => Err(Error(ErrorCode::ConnectError(err.to_string()))),
+            Err(err) => Err(MpvError::InternalConnectionError(err.to_string())),
         }
     }
 
@@ -521,7 +507,7 @@ impl Mpv {
         &self,
         property: &str,
         value: T,
-    ) -> Result<(), Error> {
+    ) -> Result<(), MpvError> {
         T::set_property_generic(self, property, value).await
     }
 }

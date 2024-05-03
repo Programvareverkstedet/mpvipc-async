@@ -4,18 +4,21 @@ use std::collections::HashMap;
 
 use serde_json::Value;
 
-use crate::{Error, ErrorCode, MpvDataType, PlaylistEntry};
+use crate::{MpvDataType, MpvError, PlaylistEntry};
 
 pub trait TypeHandler: Sized {
-    fn get_value(value: Value) -> Result<Self, Error>;
+    fn get_value(value: Value) -> Result<Self, MpvError>;
     fn as_string(&self) -> String;
 }
 
 impl TypeHandler for String {
-    fn get_value(value: Value) -> Result<String, Error> {
+    fn get_value(value: Value) -> Result<String, MpvError> {
         value
             .as_str()
-            .ok_or(Error(ErrorCode::ValueDoesNotContainString))
+            .ok_or(MpvError::ValueContainsUnexpectedType {
+                expected_type: "String".to_string(),
+                received: value.clone(),
+            })
             .map(|s| s.to_string())
     }
 
@@ -25,10 +28,13 @@ impl TypeHandler for String {
 }
 
 impl TypeHandler for bool {
-    fn get_value(value: Value) -> Result<bool, Error> {
+    fn get_value(value: Value) -> Result<bool, MpvError> {
         value
             .as_bool()
-            .ok_or(Error(ErrorCode::ValueDoesNotContainBool))
+            .ok_or(MpvError::ValueContainsUnexpectedType {
+                expected_type: "bool".to_string(),
+                received: value.clone(),
+            })
     }
 
     fn as_string(&self) -> String {
@@ -41,10 +47,11 @@ impl TypeHandler for bool {
 }
 
 impl TypeHandler for f64 {
-    fn get_value(value: Value) -> Result<f64, Error> {
-        value
-            .as_f64()
-            .ok_or(Error(ErrorCode::ValueDoesNotContainF64))
+    fn get_value(value: Value) -> Result<f64, MpvError> {
+        value.as_f64().ok_or(MpvError::ValueContainsUnexpectedType {
+            expected_type: "f64".to_string(),
+            received: value.clone(),
+        })
     }
 
     fn as_string(&self) -> String {
@@ -53,11 +60,14 @@ impl TypeHandler for f64 {
 }
 
 impl TypeHandler for usize {
-    fn get_value(value: Value) -> Result<usize, Error> {
+    fn get_value(value: Value) -> Result<usize, MpvError> {
         value
             .as_u64()
             .map(|u| u as usize)
-            .ok_or(Error(ErrorCode::ValueDoesNotContainUsize))
+            .ok_or(MpvError::ValueContainsUnexpectedType {
+                expected_type: "usize".to_string(),
+                received: value.clone(),
+            })
     }
 
     fn as_string(&self) -> String {
@@ -65,12 +75,25 @@ impl TypeHandler for usize {
     }
 }
 
+impl TypeHandler for MpvDataType {
+    fn get_value(value: Value) -> Result<MpvDataType, MpvError> {
+        json_to_value(&value)
+    }
+
+    fn as_string(&self) -> String {
+        format!("{:?}", self)
+    }
+}
+
 impl TypeHandler for HashMap<String, MpvDataType> {
-    fn get_value(value: Value) -> Result<HashMap<String, MpvDataType>, Error> {
+    fn get_value(value: Value) -> Result<HashMap<String, MpvDataType>, MpvError> {
         value
             .as_object()
-            .ok_or(Error(ErrorCode::ValueDoesNotContainHashMap))
-            .map(json_map_to_hashmap)
+            .ok_or(MpvError::ValueContainsUnexpectedType {
+                expected_type: "Map<String, Value>".to_string(),
+                received: value.clone(),
+            })
+            .and_then(json_map_to_hashmap)
     }
 
     fn as_string(&self) -> String {
@@ -79,10 +102,13 @@ impl TypeHandler for HashMap<String, MpvDataType> {
 }
 
 impl TypeHandler for Vec<PlaylistEntry> {
-    fn get_value(value: Value) -> Result<Vec<PlaylistEntry>, Error> {
+    fn get_value(value: Value) -> Result<Vec<PlaylistEntry>, MpvError> {
         value
             .as_array()
-            .ok_or(Error(ErrorCode::ValueDoesNotContainPlaylist))
+            .ok_or(MpvError::ValueContainsUnexpectedType {
+                expected_type: "Array<Value>".to_string(),
+                received: value.clone(),
+            })
             .map(|array| json_array_to_playlist(array))
     }
 
@@ -91,9 +117,9 @@ impl TypeHandler for Vec<PlaylistEntry> {
     }
 }
 
-pub(crate) fn json_to_value(value: &Value) -> Result<MpvDataType, Error> {
+pub(crate) fn json_to_value(value: &Value) -> Result<MpvDataType, MpvError> {
     match value {
-        Value::Array(array) => Ok(MpvDataType::Array(json_array_to_vec(array))),
+        Value::Array(array) => Ok(MpvDataType::Array(json_array_to_vec(array)?)),
         Value::Bool(b) => Ok(MpvDataType::Bool(*b)),
         Value::Number(n) => {
             if n.is_i64() && n.as_i64().unwrap() == -1 {
@@ -103,11 +129,13 @@ pub(crate) fn json_to_value(value: &Value) -> Result<MpvDataType, Error> {
             } else if n.is_f64() {
                 Ok(MpvDataType::Double(n.as_f64().unwrap()))
             } else {
-                // TODO: proper error handling
-                panic!("Unexpected number type");
+                Err(MpvError::ValueContainsUnexpectedType {
+                    expected_type: "i64, u64, or f64".to_string(),
+                    received: value.clone(),
+                })
             }
         }
-        Value::Object(map) => Ok(MpvDataType::HashMap(json_map_to_hashmap(map))),
+        Value::Object(map) => Ok(MpvDataType::HashMap(json_map_to_hashmap(map)?)),
         Value::String(s) => Ok(MpvDataType::String(s.to_string())),
         Value::Null => Ok(MpvDataType::Null),
     }
@@ -115,23 +143,16 @@ pub(crate) fn json_to_value(value: &Value) -> Result<MpvDataType, Error> {
 
 pub(crate) fn json_map_to_hashmap(
     map: &serde_json::map::Map<String, Value>,
-) -> HashMap<String, MpvDataType> {
+) -> Result<HashMap<String, MpvDataType>, MpvError> {
     let mut output_map: HashMap<String, MpvDataType> = HashMap::new();
     for (ref key, value) in map.iter() {
-        // TODO: proper error handling
-        if let Ok(value) = json_to_value(value) {
-            output_map.insert(key.to_string(), value);
-        }
+        output_map.insert(key.to_string(), json_to_value(value)?);
     }
-    output_map
+    Ok(output_map)
 }
 
-pub(crate) fn json_array_to_vec(array: &[Value]) -> Vec<MpvDataType> {
-    array
-        .iter()
-        // TODO: proper error handling
-        .filter_map(|entry| json_to_value(entry).ok())
-        .collect()
+pub(crate) fn json_array_to_vec(array: &[Value]) -> Result<Vec<MpvDataType>, MpvError> {
+    array.iter().map(|entry| json_to_value(entry)).collect()
 }
 
 pub(crate) fn json_array_to_playlist(array: &[Value]) -> Vec<PlaylistEntry> {
@@ -207,7 +228,10 @@ mod test {
             )])),
         );
 
-        assert_eq!(json_map_to_hashmap(json.as_object().unwrap()), expected);
+        match json_map_to_hashmap(json.as_object().unwrap()) {
+            Ok(m) => assert_eq!(m, expected),
+            Err(e) => panic!("{:?}", e),
+        }
     }
 
     #[test]
@@ -246,7 +270,10 @@ mod test {
             )])),
         ];
 
-        assert_eq!(json_array_to_vec(json.as_array().unwrap()), expected);
+        match json_array_to_vec(json.as_array().unwrap()) {
+            Ok(v) => assert_eq!(v, expected),
+            Err(e) => panic!("{:?}", e),
+        }
     }
 
     #[test]

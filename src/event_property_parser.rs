@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, ErrorCode, Event, MpvDataType, PlaylistEntry};
+use crate::{Event, MpvDataType, MpvError, PlaylistEntry};
 
 /// All possible properties that can be observed through the event system.
 ///
@@ -46,7 +46,7 @@ pub enum LoopProperty {
 }
 
 /// Parse a highlevel [`Property`] object from json, used for [`Event::PropertyChange`].
-pub fn parse_event_property(event: Event) -> Result<(usize, Property), Error> {
+pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError> {
     let (id, name, data) = match event {
         Event::PropertyChange { id, name, data } => (id, name, data),
         // TODO: return proper error
@@ -60,14 +60,24 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), Error> {
             let path = match data {
                 MpvDataType::String(s) => Some(s),
                 MpvDataType::Null => None,
-                _ => return Err(Error(ErrorCode::ValueDoesNotContainString)),
+                _ => {
+                    return Err(MpvError::DataContainsUnexpectedType {
+                        expected_type: "String".to_owned(),
+                        received: data,
+                    })
+                }
             };
             Ok((id, Property::Path(path)))
         }
         "pause" => {
             let pause = match data {
                 MpvDataType::Bool(b) => b,
-                _ => return Err(Error(ErrorCode::ValueDoesNotContainBool)),
+                _ => {
+                    return Err(MpvError::DataContainsUnexpectedType {
+                        expected_type: "bool".to_owned(),
+                        received: data,
+                    })
+                }
             };
             Ok((id, Property::Pause(pause)))
         }
@@ -75,7 +85,12 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), Error> {
             let playback_time = match data {
                 MpvDataType::Double(d) => Some(d),
                 MpvDataType::Null => None,
-                _ => return Err(Error(ErrorCode::ValueDoesNotContainF64)),
+                _ => {
+                    return Err(MpvError::DataContainsUnexpectedType {
+                        expected_type: "f64".to_owned(),
+                        received: data,
+                    })
+                }
             };
             Ok((id, Property::PlaybackTime(playback_time)))
         }
@@ -83,7 +98,12 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), Error> {
             let duration = match data {
                 MpvDataType::Double(d) => Some(d),
                 MpvDataType::Null => None,
-                _ => return Err(Error(ErrorCode::ValueDoesNotContainF64)),
+                _ => {
+                    return Err(MpvError::DataContainsUnexpectedType {
+                        expected_type: "f64".to_owned(),
+                        received: data,
+                    })
+                }
             };
             Ok((id, Property::Duration(duration)))
         }
@@ -91,7 +111,12 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), Error> {
             let metadata = match data {
                 MpvDataType::HashMap(m) => Some(m),
                 MpvDataType::Null => None,
-                _ => return Err(Error(ErrorCode::ValueDoesNotContainHashMap)),
+                _ => {
+                    return Err(MpvError::DataContainsUnexpectedType {
+                        expected_type: "HashMap".to_owned(),
+                        received: data,
+                    })
+                }
             };
             Ok((id, Property::Metadata(metadata)))
         }
@@ -108,60 +133,87 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), Error> {
                 MpvDataType::Usize(u) => Some(u),
                 MpvDataType::MinusOne => None,
                 MpvDataType::Null => None,
-                _ => return Err(Error(ErrorCode::ValueDoesNotContainUsize)),
+                _ => {
+                    return Err(MpvError::DataContainsUnexpectedType {
+                        expected_type: "usize or -1".to_owned(),
+                        received: data,
+                    })
+                }
             };
             Ok((id, Property::PlaylistPos(playlist_pos)))
         }
         "loop-file" => {
-            let loop_file = match data {
-                MpvDataType::Usize(n) => LoopProperty::N(n),
+            let loop_file = match data.to_owned() {
+                MpvDataType::Usize(n) => Some(LoopProperty::N(n)),
                 MpvDataType::Bool(b) => match b {
-                    true => LoopProperty::Inf,
-                    false => LoopProperty::No,
+                    true => Some(LoopProperty::Inf),
+                    false => Some(LoopProperty::No),
                 },
                 MpvDataType::String(s) => match s.as_str() {
-                    "inf" => LoopProperty::Inf,
-                    "no" => LoopProperty::No,
-                    _ => return Err(Error(ErrorCode::ValueDoesNotContainString)),
+                    "inf" => Some(LoopProperty::Inf),
+                    _ => None,
                 },
-                _ => return Err(Error(ErrorCode::ValueDoesNotContainString)),
-            };
+                _ => None,
+            }
+            .ok_or(MpvError::DataContainsUnexpectedType {
+                expected_type: "'inf', bool, or usize".to_owned(),
+                received: data,
+            })?;
             Ok((id, Property::LoopFile(loop_file)))
         }
         "loop-playlist" => {
-            let loop_playlist = match data {
-                MpvDataType::Usize(n) => LoopProperty::N(n),
+            let loop_playlist = match data.to_owned() {
+                MpvDataType::Usize(n) => Some(LoopProperty::N(n)),
                 MpvDataType::Bool(b) => match b {
-                    true => LoopProperty::Inf,
-                    false => LoopProperty::No,
+                    true => Some(LoopProperty::Inf),
+                    false => Some(LoopProperty::No),
                 },
                 MpvDataType::String(s) => match s.as_str() {
-                    "inf" => LoopProperty::Inf,
-                    "no" => LoopProperty::No,
-                    _ => return Err(Error(ErrorCode::ValueDoesNotContainString)),
+                    "inf" => Some(LoopProperty::Inf),
+                    _ => None,
                 },
-                _ => return Err(Error(ErrorCode::ValueDoesNotContainString)),
-            };
+                _ => None,
+            }
+            .ok_or(MpvError::DataContainsUnexpectedType {
+                expected_type: "'inf', bool, or usize".to_owned(),
+                received: data,
+            })?;
+
             Ok((id, Property::LoopPlaylist(loop_playlist)))
         }
         "speed" => {
             let speed = match data {
                 MpvDataType::Double(d) => d,
-                _ => return Err(Error(ErrorCode::ValueDoesNotContainF64)),
+                _ => {
+                    return Err(MpvError::DataContainsUnexpectedType {
+                        expected_type: "f64".to_owned(),
+                        received: data,
+                    })
+                }
             };
             Ok((id, Property::Speed(speed)))
         }
         "volume" => {
             let volume = match data {
                 MpvDataType::Double(d) => d,
-                _ => return Err(Error(ErrorCode::ValueDoesNotContainF64)),
+                _ => {
+                    return Err(MpvError::DataContainsUnexpectedType {
+                        expected_type: "f64".to_owned(),
+                        received: data,
+                    })
+                }
             };
             Ok((id, Property::Volume(volume)))
         }
         "mute" => {
             let mute = match data {
                 MpvDataType::Bool(b) => b,
-                _ => return Err(Error(ErrorCode::ValueDoesNotContainBool)),
+                _ => {
+                    return Err(MpvError::DataContainsUnexpectedType {
+                        expected_type: "bool".to_owned(),
+                        received: data,
+                    })
+                }
             };
             Ok((id, Property::Mute(mute)))
         }

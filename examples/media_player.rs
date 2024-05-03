@@ -1,4 +1,4 @@
-use mpvipc::{Error, Mpv, MpvExt};
+use mpvipc::{MpvError, Mpv, MpvExt};
 
 fn seconds_to_hms(total: f64) -> String {
     let total = total as u64;
@@ -10,7 +10,7 @@ fn seconds_to_hms(total: f64) -> String {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> Result<(), MpvError> {
     env_logger::init();
 
     let mpv = Mpv::connect("/tmp/mpv.sock").await?;

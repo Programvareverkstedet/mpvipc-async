@@ -5,7 +5,7 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::{ipc::MpvIpcEvent, message_parser::json_to_value, Error, ErrorCode, MpvDataType};
+use crate::{ipc::MpvIpcEvent, message_parser::json_to_value, MpvDataType, MpvError};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -147,6 +147,37 @@ pub enum Event {
     Unimplemented(Map<String, Value>),
 }
 
+macro_rules! get_key_as {
+    ($as_type:ident, $key:expr, $event:ident) => {{
+        let tmp = $event.get($key).ok_or(MpvError::MissingKeyInObject {
+            key: $key.to_owned(),
+            map: $event.clone(),
+        })?;
+
+        tmp.$as_type()
+            .ok_or(MpvError::ValueContainsUnexpectedType {
+                expected_type: stringify!($as_type).strip_prefix("as_").unwrap().to_owned(),
+                received: tmp.clone(),
+            })?
+    }};
+}
+
+macro_rules! get_optional_key_as {
+    ($as_type:ident, $key:expr, $event:ident) => {{
+        if let Some(tmp) = $event.get($key) {
+            Some(
+                tmp.$as_type()
+                    .ok_or(MpvError::ValueContainsUnexpectedType {
+                        expected_type: stringify!($as_type).strip_prefix("as_").unwrap().to_owned(),
+                        received: tmp.clone(),
+                    })?,
+            )
+        } else {
+            None
+        }
+    }};
+}
+
 // NOTE: I have not been able to test all of these events,
 //       so some of the parsing logic might be incorrect.
 //       In particular, I have not been able to make mpv
@@ -157,19 +188,17 @@ pub enum Event {
 //       If you need this, please open an issue or a PR.
 
 /// Parse a highlevel [`Event`] objects from json.
-#[allow(deprecated)]
-pub(crate) fn parse_event(raw_event: MpvIpcEvent) -> Result<Event, Error> {
+pub(crate) fn parse_event(raw_event: MpvIpcEvent) -> Result<Event, MpvError> {
     let MpvIpcEvent(event) = raw_event;
 
     event
         .as_object()
-        .ok_or(Error(ErrorCode::JsonContainsUnexptectedType))
+        .ok_or(MpvError::ValueContainsUnexpectedType {
+            expected_type: "object".to_owned(),
+            received: event.clone(),
+        })
         .and_then(|event| {
-            let event_name = event
-                .get("event")
-                .ok_or(Error(ErrorCode::MissingValue))?
-                .as_str()
-                .ok_or(Error(ErrorCode::ValueDoesNotContainString))?;
+            let event_name = get_key_as!(as_str, "event", event);
 
             match event_name {
                 "start-file" => parse_start_file(event),
@@ -200,35 +229,20 @@ pub(crate) fn parse_event(raw_event: MpvIpcEvent) -> Result<Event, Error> {
         })
 }
 
-fn parse_start_file(event: &Map<String, Value>) -> Result<Event, Error> {
-    let playlist_entry_id = event
-        .get("playlist_entry_id")
-        .ok_or(Error(ErrorCode::MissingValue))?
-        .as_u64()
-        .ok_or(Error(ErrorCode::ValueDoesNotContainUsize))? as usize;
+fn parse_start_file(event: &Map<String, Value>) -> Result<Event, MpvError> {
+    let playlist_entry_id = get_key_as!(as_u64, "playlist_entry_id", event) as usize;
+
     Ok(Event::StartFile { playlist_entry_id })
 }
 
-fn parse_end_file(event: &Map<String, Value>) -> Result<Event, Error> {
-    let reason = event
-        .get("reason")
-        .ok_or(Error(ErrorCode::MissingValue))?
-        .as_str()
-        .ok_or(Error(ErrorCode::ValueDoesNotContainString))?;
-    let playlist_entry_id = event
-        .get("playlist_entry_id")
-        .ok_or(Error(ErrorCode::MissingValue))?
-        .as_u64()
-        .ok_or(Error(ErrorCode::ValueDoesNotContainUsize))? as usize;
-    let file_error = event
-        .get("file_error")
-        .and_then(|v| v.as_str().map(|s| s.to_string()));
-    let playlist_insert_id = event
-        .get("playlist_insert_id")
-        .and_then(|v| v.as_u64().map(|u| u as usize));
-    let playlist_insert_num_entries = event
-        .get("playlist_insert_num_entries")
-        .and_then(|v| v.as_u64().map(|u| u as usize));
+fn parse_end_file(event: &Map<String, Value>) -> Result<Event, MpvError> {
+    let reason = get_key_as!(as_str, "reason", event);
+    let playlist_entry_id = get_key_as!(as_u64, "playlist_entry_id", event) as usize;
+    let file_error = get_optional_key_as!(as_str, "file_error", event).map(|s| s.to_string());
+    let playlist_insert_id =
+        get_optional_key_as!(as_u64, "playlist_insert_id", event).map(|i| i as usize);
+    let playlist_insert_num_entries =
+        get_optional_key_as!(as_u64, "playlist_insert_num_entries", event).map(|i| i as usize);
 
     Ok(Event::EndFile {
         reason: reason
@@ -241,24 +255,10 @@ fn parse_end_file(event: &Map<String, Value>) -> Result<Event, Error> {
     })
 }
 
-fn parse_log_message(event: &Map<String, Value>) -> Result<Event, Error> {
-    let prefix = event
-        .get("prefix")
-        .ok_or(Error(ErrorCode::MissingValue))?
-        .as_str()
-        .ok_or(Error(ErrorCode::ValueDoesNotContainString))?
-        .to_string();
-    let level = event
-        .get("level")
-        .ok_or(Error(ErrorCode::MissingValue))?
-        .as_str()
-        .ok_or(Error(ErrorCode::ValueDoesNotContainString))?;
-    let text = event
-        .get("text")
-        .ok_or(Error(ErrorCode::MissingValue))?
-        .as_str()
-        .ok_or(Error(ErrorCode::ValueDoesNotContainString))?
-        .to_string();
+fn parse_log_message(event: &Map<String, Value>) -> Result<Event, MpvError> {
+    let prefix = get_key_as!(as_str, "prefix", event).to_owned();
+    let level = get_key_as!(as_str, "level", event);
+    let text = get_key_as!(as_str, "text", event).to_owned();
 
     Ok(Event::LogMessage {
         prefix,
@@ -269,45 +269,35 @@ fn parse_log_message(event: &Map<String, Value>) -> Result<Event, Error> {
     })
 }
 
-fn parse_hook(event: &Map<String, Value>) -> Result<Event, Error> {
-    let hook_id = event
-        .get("hook_id")
-        .ok_or(Error(ErrorCode::MissingValue))?
-        .as_u64()
-        .ok_or(Error(ErrorCode::ValueDoesNotContainUsize))? as usize;
+fn parse_hook(event: &Map<String, Value>) -> Result<Event, MpvError> {
+    let hook_id = get_key_as!(as_u64, "hook_id", event) as usize;
     Ok(Event::Hook { hook_id })
 }
 
-fn parse_client_message(event: &Map<String, Value>) -> Result<Event, Error> {
-    let args = event
-        .get("args")
-        .ok_or(Error(ErrorCode::MissingValue))?
-        .as_array()
-        .ok_or(Error(ErrorCode::ValueDoesNotContainString))?
+fn parse_client_message(event: &Map<String, Value>) -> Result<Event, MpvError> {
+    let args = get_key_as!(as_array, "args", event)
         .iter()
         .map(|arg| {
             arg.as_str()
-                .ok_or(Error(ErrorCode::ValueDoesNotContainString))
+                .ok_or(MpvError::ValueContainsUnexpectedType {
+                    expected_type: "string".to_owned(),
+                    received: arg.clone(),
+                })
                 .map(|s| s.to_string())
         })
-        .collect::<Result<Vec<String>, Error>>()?;
+        .collect::<Result<Vec<String>, MpvError>>()?;
     Ok(Event::ClientMessage { args })
 }
 
-fn parse_property_change(event: &Map<String, Value>) -> Result<Event, Error> {
-    let id = event
-        .get("id")
-        .ok_or(Error(ErrorCode::MissingValue))?
-        .as_u64()
-        .ok_or(Error(ErrorCode::ValueDoesNotContainUsize))? as usize;
-    let property_name = event
-        .get("name")
-        .ok_or(Error(ErrorCode::MissingValue))?
-        .as_str()
-        .ok_or(Error(ErrorCode::ValueDoesNotContainString))?;
+fn parse_property_change(event: &Map<String, Value>) -> Result<Event, MpvError> {
+    let id = get_key_as!(as_u64, "id", event) as usize;
+    let property_name = get_key_as!(as_str, "name", event);
     let data = event
         .get("data")
-        .ok_or(Error(ErrorCode::MissingValue))?
+        .ok_or(MpvError::MissingKeyInObject {
+            key: "data".to_owned(),
+            map: event.clone(),
+        })?
         .clone();
 
     Ok(Event::PropertyChange {

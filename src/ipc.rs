@@ -8,7 +8,7 @@ use tokio::{
 };
 use tokio_util::codec::{Framed, LinesCodec};
 
-use crate::{Error, ErrorCode};
+use crate::MpvError;
 
 /// Container for all state that regards communication with the mpv IPC socket
 /// and message passing with [`Mpv`](crate::Mpv) controllers.
@@ -30,8 +30,8 @@ pub(crate) enum MpvIpcCommand {
 }
 
 /// [`MpvIpc`]'s response to a [`MpvIpcCommand`].
-#[derive(Debug, Clone)]
-pub(crate) struct MpvIpcResponse(pub(crate) Result<Option<Value>, Error>);
+#[derive(Debug)]
+pub(crate) struct MpvIpcResponse(pub(crate) Result<Option<Value>, MpvError>);
 
 /// A deserialized and partially parsed event from mpv.
 #[derive(Debug, Clone)]
@@ -50,28 +50,33 @@ impl MpvIpc {
         }
     }
 
-    pub(crate) async fn send_command(&mut self, command: &[Value]) -> Result<Option<Value>, Error> {
+    pub(crate) async fn send_command(
+        &mut self,
+        command: &[Value],
+    ) -> Result<Option<Value>, MpvError> {
         let ipc_command = json!({ "command": command });
-        let ipc_command_str = serde_json::to_string(&ipc_command)
-            .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())))?;
+        let ipc_command_str =
+            serde_json::to_string(&ipc_command).map_err(|why| MpvError::JsonParseError(why))?;
 
         log::trace!("Sending command: {}", ipc_command_str);
 
         self.socket
             .send(ipc_command_str)
             .await
-            .map_err(|why| Error(ErrorCode::ConnectError(why.to_string())))?;
+            .map_err(|why| MpvError::MpvSocketConnectionError(why.to_string()))?;
 
         let response = loop {
             let response = self
                 .socket
                 .next()
                 .await
-                .ok_or(Error(ErrorCode::MissingValue))?
-                .map_err(|why| Error(ErrorCode::ConnectError(why.to_string())))?;
+                .ok_or(MpvError::MpvSocketConnectionError(
+                    "Could not receive response from mpv".to_owned(),
+                ))?
+                .map_err(|why| MpvError::MpvSocketConnectionError(why.to_string()))?;
 
             let parsed_response = serde_json::from_str::<Value>(&response)
-                .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string())));
+                .map_err(|why| MpvError::JsonParseError(why));
 
             if parsed_response
                 .as_ref()
@@ -93,7 +98,7 @@ impl MpvIpc {
     pub(crate) async fn get_mpv_property(
         &mut self,
         property: &str,
-    ) -> Result<Option<Value>, Error> {
+    ) -> Result<Option<Value>, MpvError> {
         self.send_command(&[json!("get_property"), json!(property)])
             .await
     }
@@ -102,7 +107,7 @@ impl MpvIpc {
         &mut self,
         property: &str,
         value: Value,
-    ) -> Result<Option<Value>, Error> {
+    ) -> Result<Option<Value>, MpvError> {
         self.send_command(&[json!("set_property"), json!(property), value])
             .await
     }
@@ -111,17 +116,20 @@ impl MpvIpc {
         &mut self,
         id: isize,
         property: &str,
-    ) -> Result<Option<Value>, Error> {
+    ) -> Result<Option<Value>, MpvError> {
         self.send_command(&[json!("observe_property"), json!(id), json!(property)])
             .await
     }
 
-    pub(crate) async fn unobserve_property(&mut self, id: isize) -> Result<Option<Value>, Error> {
+    pub(crate) async fn unobserve_property(
+        &mut self,
+        id: isize,
+    ) -> Result<Option<Value>, MpvError> {
         self.send_command(&[json!("unobserve_property"), json!(id)])
             .await
     }
 
-    async fn handle_event(&mut self, event: Result<Value, Error>) {
+    async fn handle_event(&mut self, event: Result<Value, MpvError>) {
         match &event {
             Ok(event) => {
                 log::trace!("Parsed event: {:?}", event);
@@ -137,17 +145,17 @@ impl MpvIpc {
         }
     }
 
-    pub(crate) async fn run(mut self) -> Result<(), Error> {
+    pub(crate) async fn run(mut self) -> Result<(), MpvError> {
         loop {
             tokio::select! {
               Some(event) = self.socket.next() => {
                 log::trace!("Got event: {:?}", event);
 
                 let parsed_event = event
-                    .map_err(|why| Error(ErrorCode::ConnectError(why.to_string())))
+                    .map_err(|why| MpvError::MpvSocketConnectionError(why.to_string()))
                     .and_then(|event|
                         serde_json::from_str::<Value>(&event)
-                        .map_err(|why| Error(ErrorCode::JsonParseError(why.to_string()))));
+                        .map_err(|why| MpvError::JsonParseError(why)));
 
                 self.handle_event(parsed_event).await;
               }
@@ -189,20 +197,40 @@ impl MpvIpc {
 /// This function does the most basic JSON parsing and error handling
 /// for status codes and errors that all responses from mpv are
 /// expected to contain.
-fn parse_mpv_response_data(value: Value) -> Result<Option<Value>, Error> {
+fn parse_mpv_response_data(value: Value) -> Result<Option<Value>, MpvError> {
     log::trace!("Parsing mpv response data: {:?}", value);
     let result = value
         .as_object()
-        .map(|o| (o.get("error").and_then(|e| e.as_str()), o.get("data")))
-        .ok_or(Error(ErrorCode::UnexpectedValue))
+        .ok_or(MpvError::ValueContainsUnexpectedType {
+            expected_type: "object".to_string(),
+            received: value.clone(),
+        })
+        .and_then(|o| {
+            let error = o
+                .get("error")
+                .ok_or(MpvError::MissingKeyInObject {
+                    key: "error".to_string(),
+                    map: o.clone(),
+                })?
+                .as_str()
+                .ok_or(MpvError::ValueContainsUnexpectedType {
+                    expected_type: "string".to_string(),
+                    received: o.get("error").unwrap().clone(),
+                })?;
+
+            let data = o.get("data");
+
+            Ok((error, data))
+        })
         .and_then(|(error, data)| match error {
-            Some("success") => Ok(data),
-            Some(e) => Err(Error(ErrorCode::MpvError(e.to_string()))),
-            None => Err(Error(ErrorCode::UnexpectedValue)),
+            "success" => Ok(data),
+            err => Err(MpvError::MpvError(err.to_string())),
         });
+
     match &result {
         Ok(v) => log::trace!("Successfully parsed mpv response data: {:?}", v),
         Err(e) => log::trace!("Error parsing mpv response data: {:?}", e),
     }
+
     result.map(|opt| opt.cloned())
 }
