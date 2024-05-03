@@ -1,7 +1,7 @@
 //! Library specific error messages.
 
-use thiserror::Error;
 use serde_json::{Map, Value};
+use thiserror::Error;
 
 use crate::MpvDataType;
 
@@ -22,14 +22,16 @@ pub enum MpvError {
 
     #[error("Mpv sent a value with an unexpected type:\nExpected {expected_type}, received {received:#?}")]
     ValueContainsUnexpectedType {
-      expected_type: String,
-      received: Value,
+        expected_type: String,
+        received: Value,
     },
 
-    #[error("Mpv sent data with an unexpected type:\nExpected {expected_type}, received {received:#?}")]
+    #[error(
+        "Mpv sent data with an unexpected type:\nExpected {expected_type}, received {received:#?}"
+    )]
     DataContainsUnexpectedType {
-      expected_type: String,
-      received: MpvDataType,
+        expected_type: String,
+        received: MpvDataType,
     },
 
     #[error("Missing expected 'data' field in mpv message")]
@@ -37,8 +39,8 @@ pub enum MpvError {
 
     #[error("Missing key in object:\nExpected {key} in {map:#?}")]
     MissingKeyInObject {
-      key: String,
-      map: Map<String, Value>,
+        key: String,
+        map: Map<String, Value>,
     },
 
     #[error("Unknown error: {0}")]

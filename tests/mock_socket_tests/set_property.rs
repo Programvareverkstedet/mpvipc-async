@@ -1,7 +1,7 @@
 use std::{panic, time::Duration};
 
 use futures::{stream::FuturesUnordered, SinkExt, StreamExt};
-use mpvipc::{MpvError, Mpv, MpvExt, Playlist, PlaylistEntry};
+use mpvipc::{Mpv, MpvError, MpvExt, Playlist, PlaylistEntry};
 use serde_json::{json, Value};
 use test_log::test;
 use tokio::{net::UnixStream, task::JoinHandle};
@@ -130,7 +130,7 @@ async fn test_set_property_simultaneous_requests() {
         loop {
             let status = mpv_clone_1.set_property("volume", 100).await;
             match status {
-                Ok(()) => {},
+                Ok(()) => {}
                 _ => panic!("Unexpected result: {:?}", status),
             }
         }
@@ -142,7 +142,7 @@ async fn test_set_property_simultaneous_requests() {
             tokio::time::sleep(Duration::from_millis(1)).await;
             let status = mpv_clone_2.set_property("pause", false).await;
             match status {
-                Ok(()) => {},
+                Ok(()) => {}
                 _ => panic!("Unexpected result: {:?}", status),
             }
         }

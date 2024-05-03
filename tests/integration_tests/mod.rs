@@ -1,5 +1,5 @@
 mod event_property_parser;
-mod util;
 mod misc;
+mod util;
 
 use util::*;

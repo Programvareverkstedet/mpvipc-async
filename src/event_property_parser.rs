@@ -34,7 +34,10 @@ pub enum Property {
     Speed(f64),
     Volume(f64),
     Mute(bool),
-    Unknown { name: String, data: Option<MpvDataType> },
+    Unknown {
+        name: String,
+        data: Option<MpvDataType>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

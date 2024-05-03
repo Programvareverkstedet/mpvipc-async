@@ -56,7 +56,7 @@ impl MpvIpc {
     ) -> Result<Option<Value>, MpvError> {
         let ipc_command = json!({ "command": command });
         let ipc_command_str =
-            serde_json::to_string(&ipc_command).map_err(|why| MpvError::JsonParseError(why))?;
+            serde_json::to_string(&ipc_command).map_err(MpvError::JsonParseError)?;
 
         log::trace!("Sending command: {}", ipc_command_str);
 
@@ -75,8 +75,8 @@ impl MpvIpc {
                 ))?
                 .map_err(|why| MpvError::MpvSocketConnectionError(why.to_string()))?;
 
-            let parsed_response = serde_json::from_str::<Value>(&response)
-                .map_err(|why| MpvError::JsonParseError(why));
+            let parsed_response =
+                serde_json::from_str::<Value>(&response).map_err(MpvError::JsonParseError);
 
             if parsed_response
                 .as_ref()
@@ -155,7 +155,7 @@ impl MpvIpc {
                     .map_err(|why| MpvError::MpvSocketConnectionError(why.to_string()))
                     .and_then(|event|
                         serde_json::from_str::<Value>(&event)
-                        .map_err(|why| MpvError::JsonParseError(why)));
+                        .map_err(MpvError::JsonParseError));
 
                 self.handle_event(parsed_event).await;
               }

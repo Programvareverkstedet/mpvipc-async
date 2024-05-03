@@ -1,7 +1,7 @@
 //! High-level API extension for [`Mpv`].
 
 use crate::{
-    MpvError, IntoRawCommandPart, Mpv, MpvCommand, MpvDataType, Playlist, PlaylistAddOptions,
+    IntoRawCommandPart, Mpv, MpvCommand, MpvDataType, MpvError, Playlist, PlaylistAddOptions,
     PlaylistEntry, SeekOptions,
 };
 use serde::{Deserialize, Serialize};
@@ -49,11 +49,18 @@ pub trait MpvExt {
     async fn stop(&self) -> Result<(), MpvError>;
 
     /// Set the volume of the player.
-    async fn set_volume(&self, input_volume: f64, option: NumberChangeOptions)
-        -> Result<(), MpvError>;
+    async fn set_volume(
+        &self,
+        input_volume: f64,
+        option: NumberChangeOptions,
+    ) -> Result<(), MpvError>;
 
     /// Set the playback speed of the player.
-    async fn set_speed(&self, input_speed: f64, option: NumberChangeOptions) -> Result<(), MpvError>;
+    async fn set_speed(
+        &self,
+        input_speed: f64,
+        option: NumberChangeOptions,
+    ) -> Result<(), MpvError>;
 
     /// Toggle/set the pause state of the player.
     async fn set_playback(&self, option: Switch) -> Result<(), MpvError>;
@@ -306,7 +313,11 @@ impl MpvExt for Mpv {
         self.set_property("mute", enabled).await
     }
 
-    async fn set_speed(&self, input_speed: f64, option: NumberChangeOptions) -> Result<(), MpvError> {
+    async fn set_speed(
+        &self,
+        input_speed: f64,
+        option: NumberChangeOptions,
+    ) -> Result<(), MpvError> {
         match self.get_property::<f64>("speed").await {
             Ok(speed) => match option {
                 NumberChangeOptions::Increase => {

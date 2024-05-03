@@ -167,7 +167,7 @@ where
         value: T,
     ) -> Result<(), MpvError> {
         let (res_tx, res_rx) = oneshot::channel();
-        let value = serde_json::to_value(value).map_err(|why| MpvError::JsonParseError(why))?;
+        let value = serde_json::to_value(value).map_err(MpvError::JsonParseError)?;
 
         instance
             .command_sender

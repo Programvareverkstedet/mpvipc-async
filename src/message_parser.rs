@@ -152,7 +152,7 @@ pub(crate) fn json_map_to_hashmap(
 }
 
 pub(crate) fn json_array_to_vec(array: &[Value]) -> Result<Vec<MpvDataType>, MpvError> {
-    array.iter().map(|entry| json_to_value(entry)).collect()
+    array.iter().map(json_to_value).collect()
 }
 
 pub(crate) fn json_array_to_playlist(array: &[Value]) -> Vec<PlaylistEntry> {
