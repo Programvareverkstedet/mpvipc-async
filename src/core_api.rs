@@ -199,6 +199,7 @@ pub struct Mpv {
     broadcast_channel: broadcast::Sender<MpvIpcEvent>,
 }
 
+// TODO: Can we somehow provide a more useful Debug implementation?
 impl fmt::Debug for Mpv {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("Mpv").finish()
@@ -206,6 +207,8 @@ impl fmt::Debug for Mpv {
 }
 
 impl Mpv {
+    /// Connect to a unix socket, hosted by mpv, at the given path.
+    /// This is the inteded way of creating a new [`Mpv`] instance.
     pub async fn connect(socket_path: &str) -> Result<Mpv, MpvError> {
         log::debug!("Connecting to mpv socket at {}", socket_path);
 
@@ -217,6 +220,10 @@ impl Mpv {
         Self::connect_socket(socket).await
     }
 
+    /// Connect to an existing [`UnixStream`].
+    /// This is an alternative to [`Mpv::connect`], if you already have a [`UnixStream`] available.
+    ///
+    /// Internally, this is used for testing purposes.
     pub async fn connect_socket(socket: UnixStream) -> Result<Mpv, MpvError> {
         let (com_tx, com_rx) = mpsc::channel(100);
         let (ev_tx, _) = broadcast::channel(100);
@@ -231,6 +238,11 @@ impl Mpv {
         })
     }
 
+    /// Disconnect from the mpv socket.
+    ///
+    /// Note that this will also kill communication for all other clones of this instance.
+    /// It will not kill the mpv process itself - for that you should use [`MpvCommand::Quit`]
+    /// or run [`MpvExt::kill`](crate::MpvExt::kill).
     pub async fn disconnect(&self) -> Result<(), MpvError> {
         let (res_tx, res_rx) = oneshot::channel();
         self.command_sender
@@ -244,6 +256,10 @@ impl Mpv {
         }
     }
 
+    /// Create a new stream, providing [`Event`]s from mpv.
+    ///
+    /// This is intended to be used with [`MpvCommand::Observe`] and [`MpvCommand::Unobserve`]
+    /// (or [`MpvExt::observe_property`] and [`MpvExt::unobserve_property`] respectively).
     pub async fn get_event_stream(&self) -> impl futures::Stream<Item = Result<Event, MpvError>> {
         tokio_stream::wrappers::BroadcastStream::new(self.broadcast_channel.subscribe()).map(
             |event| match event {
@@ -255,7 +271,7 @@ impl Mpv {
 
     /// Run a custom command.
     /// This should only be used if the desired command is not implemented
-    /// with [MpvCommand].
+    /// with [`MpvCommand`].
     pub async fn run_command_raw(
         &self,
         command: &str,
@@ -281,6 +297,7 @@ impl Mpv {
         }
     }
 
+    /// Helper function to ignore the return value of a command, and only check for errors.
     async fn run_command_raw_ignore_value(
         &self,
         command: &str,
@@ -300,18 +317,20 @@ impl Mpv {
     ///
     /// # Example
     /// ```
-    /// use mpvipc::{Mpv, Error};
-    /// fn main() -> Result<(), Error> {
-    ///     let mpv = Mpv::connect("/tmp/mpvsocket")?;
+    /// use mpvipc::{Mpv, MpvError};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), MpvError> {
+    ///     let mpv = Mpv::connect("/tmp/mpvsocket").await?;
     ///
     ///     //Run command 'playlist-shuffle' which takes no arguments
-    ///     mpv.run_command(MpvCommand::PlaylistShuffle)?;
+    ///     mpv.run_command(MpvCommand::PlaylistShuffle).await?;
     ///
     ///     //Run command 'seek' which in this case takes two arguments
     ///     mpv.run_command(MpvCommand::Seek {
     ///         seconds: 0f64,
     ///         option: SeekOptions::Absolute,
-    ///     })?;
+    ///     }).await?;
     ///     Ok(())
     /// }
     /// ```
@@ -430,9 +449,11 @@ impl Mpv {
     ///
     /// # Example
     /// ```
-    /// use mpvipc::{Mpv, Error};
-    /// async fn main() -> Result<(), Error> {
-    ///     let mpv = Mpv::connect("/tmp/mpvsocket")?;
+    /// use mpvipc::{Mpv, MpvError};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), MpvError> {
+    ///     let mpv = Mpv::connect("/tmp/mpvsocket").await?;
     ///     let paused: bool = mpv.get_property("pause").await?;
     ///     let title: String = mpv.get_property("media-title").await?;
     ///     Ok(())
@@ -457,10 +478,12 @@ impl Mpv {
     /// # Example
     ///
     /// ```
-    /// use mpvipc::{Mpv, Error};
-    /// fn main() -> Result<(), Error> {
-    ///     let mpv = Mpv::connect("/tmp/mpvsocket")?;
-    ///     let title = mpv.get_property_string("media-title")?;
+    /// use mpvipc::{Mpv, MpvError};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), MpvError> {
+    ///     let mpv = Mpv::connect("/tmp/mpvsocket").await?;
+    ///     let title = mpv.get_property_string("media-title").await?;
     ///     Ok(())
     /// }
     /// ```
@@ -496,9 +519,9 @@ impl Mpv {
     ///
     /// # Example
     /// ```
-    /// use mpvipc::{Mpv, Error};
-    /// fn async main() -> Result<(), Error> {
-    ///     let mpv = Mpv::connect("/tmp/mpvsocket")?;
+    /// use mpvipc::{Mpv, MpvError};
+    /// async fn main() -> Result<(), MpvError> {
+    ///     let mpv = Mpv::connect("/tmp/mpvsocket").await?;
     ///     mpv.set_property("pause", true).await?;
     ///     Ok(())
     /// }
