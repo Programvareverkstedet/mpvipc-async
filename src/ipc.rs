@@ -24,8 +24,8 @@ pub(crate) enum MpvIpcCommand {
     Command(Vec<String>),
     GetProperty(String),
     SetProperty(String, Value),
-    ObserveProperty(isize, String),
-    UnobserveProperty(isize),
+    ObserveProperty(usize, String),
+    UnobserveProperty(usize),
     Exit,
 }
 
@@ -114,7 +114,7 @@ impl MpvIpc {
 
     pub(crate) async fn observe_property(
         &mut self,
-        id: isize,
+        id: usize,
         property: &str,
     ) -> Result<Option<Value>, MpvError> {
         self.send_command(&[json!("observe_property"), json!(id), json!(property)])
@@ -123,7 +123,7 @@ impl MpvIpc {
 
     pub(crate) async fn unobserve_property(
         &mut self,
-        id: isize,
+        id: usize,
     ) -> Result<Option<Value>, MpvError> {
         self.send_command(&[json!("unobserve_property"), json!(id)])
             .await

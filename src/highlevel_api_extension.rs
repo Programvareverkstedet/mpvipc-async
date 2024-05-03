@@ -68,8 +68,8 @@ pub trait MpvExt {
     async fn restart(&self) -> Result<(), MpvError>;
     async fn prev(&self) -> Result<(), MpvError>;
     async fn pause(&self) -> Result<(), MpvError>;
-    async fn unobserve_property(&self, id: isize) -> Result<(), MpvError>;
-    async fn observe_property(&self, id: isize, property: &str) -> Result<(), MpvError>;
+    async fn unobserve_property(&self, id: usize) -> Result<(), MpvError>;
+    async fn observe_property(&self, id: usize, property: &str) -> Result<(), MpvError>;
     async fn next(&self) -> Result<(), MpvError>;
     async fn kill(&self) -> Result<(), MpvError>;
     async fn get_playlist(&self) -> Result<Playlist, MpvError>;
@@ -95,7 +95,7 @@ impl MpvExt for Mpv {
         self.run_command(MpvCommand::PlaylistNext).await
     }
 
-    async fn observe_property(&self, id: isize, property: &str) -> Result<(), MpvError> {
+    async fn observe_property(&self, id: usize, property: &str) -> Result<(), MpvError> {
         self.run_command(MpvCommand::Observe {
             id,
             property: property.to_string(),
@@ -103,7 +103,7 @@ impl MpvExt for Mpv {
         .await
     }
 
-    async fn unobserve_property(&self, id: isize) -> Result<(), MpvError> {
+    async fn unobserve_property(&self, id: usize) -> Result<(), MpvError> {
         self.run_command(MpvCommand::Unobserve(id)).await
     }
 

@@ -41,7 +41,7 @@ pub enum MpvCommand {
         to: usize,
     },
     Observe {
-        id: isize,
+        id: usize,
         property: String,
     },
     PlaylistNext,
@@ -59,7 +59,7 @@ pub enum MpvCommand {
         option: SeekOptions,
     },
     Stop,
-    Unobserve(isize),
+    Unobserve(usize),
 }
 
 /// Helper trait to keep track of the string literals that mpv expects.
