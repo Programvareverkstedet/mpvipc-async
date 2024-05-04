@@ -1,21 +1,24 @@
-//! JSON parsing logic for properties returned in [`Event::PropertyChange`]
+//! JSON parsing logic for properties returned by
+//! [[`Event::PropertyChange`], and used internally in `MpvExt`
+//! to parse the response from `Mpv::get_property()`.
 //!
-//! This module is used to parse the json data from the `data` field of the
-//! [`Event::PropertyChange`] variant. Mpv has about 1000 different properties
+//! This module is used to parse the json data from the `data` field of
+//! known properties. Mpv has about 1000 different properties
 //! as of `v0.38.0`, so this module will only implement the most common ones.
+
+// TODO: reuse this logic for providing a more typesafe response API to `Mpv::get_property()`
+//       Although this data is currently of type `Option<`
 
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Event, MpvDataType, MpvError, PlaylistEntry};
+use crate::{MpvDataType, MpvError, PlaylistEntry};
 
-/// All possible properties that can be observed through the event system.
+/// An incomplete list of properties that mpv can return.
 ///
-/// Not all properties are guaranteed to be implemented.
-/// If something is missing, please open an issue.
-///
-/// Otherwise, the property will be returned as a `Property::Unknown` variant.
+/// Unimplemented properties will be returned with it's data
+/// as a `Property::Unknown` variant.
 ///
 /// See <https://mpv.io/manual/master/#properties> for
 /// the upstream list of properties.
@@ -31,6 +34,8 @@ pub enum Property {
     PlaylistPos(Option<usize>),
     LoopFile(LoopProperty),
     LoopPlaylist(LoopProperty),
+    TimePos(f64),
+    TimeRemaining(f64),
     Speed(f64),
     Volume(f64),
     Mute(bool),
@@ -48,17 +53,12 @@ pub enum LoopProperty {
     No,
 }
 
-/// Parse a highlevel [`Property`] object from json, used for [`Event::PropertyChange`].
-pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError> {
-    let (id, name, data) = match event {
-        Event::PropertyChange { id, name, data } => (id, name, data),
-        // TODO: return proper error
-        _ => {
-            panic!("Event is not a PropertyChange event")
-        }
-    };
-
-    match name.as_str() {
+/// Parse a highlevel [`Property`] object from mpv data.
+///
+/// This is intended to be used with the `data` field of
+/// `Event::PropertyChange` and the response from `Mpv::get_property_value()`.
+pub fn parse_property(name: &str, data: Option<MpvDataType>) -> Result<Property, MpvError> {
+    match name {
         "path" => {
             let path = match data {
                 Some(MpvDataType::String(s)) => Some(s),
@@ -73,7 +73,7 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
                     return Err(MpvError::MissingMpvData);
                 }
             };
-            Ok((id, Property::Path(path)))
+            Ok(Property::Path(path))
         }
         "pause" => {
             let pause = match data {
@@ -88,7 +88,7 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
                     return Err(MpvError::MissingMpvData);
                 }
             };
-            Ok((id, Property::Pause(pause)))
+            Ok(Property::Pause(pause))
         }
         "playback-time" => {
             let playback_time = match data {
@@ -101,7 +101,7 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
                     })
                 }
             };
-            Ok((id, Property::PlaybackTime(playback_time)))
+            Ok(Property::PlaybackTime(playback_time))
         }
         "duration" => {
             let duration = match data {
@@ -114,7 +114,7 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
                     })
                 }
             };
-            Ok((id, Property::Duration(duration)))
+            Ok(Property::Duration(duration))
         }
         "metadata" => {
             let metadata = match data {
@@ -127,7 +127,7 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
                     })
                 }
             };
-            Ok((id, Property::Metadata(metadata)))
+            Ok(Property::Metadata(metadata))
         }
         "playlist" => {
             let playlist = match data {
@@ -140,7 +140,7 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
                     })
                 }
             };
-            Ok((id, Property::Playlist(playlist)))
+            Ok(Property::Playlist(playlist))
         }
         "playlist-pos" => {
             let playlist_pos = match data {
@@ -155,7 +155,7 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
                     })
                 }
             };
-            Ok((id, Property::PlaylistPos(playlist_pos)))
+            Ok(Property::PlaylistPos(playlist_pos))
         }
         "loop-file" => {
             let loop_file = match data.to_owned() {
@@ -177,7 +177,7 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
                 },
                 None => MpvError::MissingMpvData,
             })?;
-            Ok((id, Property::LoopFile(loop_file)))
+            Ok(Property::LoopFile(loop_file))
         }
         "loop-playlist" => {
             let loop_playlist = match data.to_owned() {
@@ -200,7 +200,37 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
                 None => MpvError::MissingMpvData,
             })?;
 
-            Ok((id, Property::LoopPlaylist(loop_playlist)))
+            Ok(Property::LoopPlaylist(loop_playlist))
+        }
+        "time-pos" => {
+            let time_pos = match data {
+                Some(MpvDataType::Double(d)) => d,
+                Some(data) => {
+                    return Err(MpvError::DataContainsUnexpectedType {
+                        expected_type: "f64".to_owned(),
+                        received: data,
+                    })
+                }
+                None => {
+                    return Err(MpvError::MissingMpvData);
+                }
+            };
+            Ok(Property::TimePos(time_pos))
+        }
+        "time-remaining" => {
+            let time_remaining = match data {
+                Some(MpvDataType::Double(d)) => d,
+                Some(data) => {
+                    return Err(MpvError::DataContainsUnexpectedType {
+                        expected_type: "f64".to_owned(),
+                        received: data,
+                    })
+                }
+                None => {
+                    return Err(MpvError::MissingMpvData);
+                }
+            };
+            Ok(Property::TimeRemaining(time_remaining))
         }
         "speed" => {
             let speed = match data {
@@ -215,7 +245,7 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
                     return Err(MpvError::MissingMpvData);
                 }
             };
-            Ok((id, Property::Speed(speed)))
+            Ok(Property::Speed(speed))
         }
         "volume" => {
             let volume = match data {
@@ -230,7 +260,7 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
                     return Err(MpvError::MissingMpvData);
                 }
             };
-            Ok((id, Property::Volume(volume)))
+            Ok(Property::Volume(volume))
         }
         "mute" => {
             let mute = match data {
@@ -245,10 +275,13 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
                     return Err(MpvError::MissingMpvData);
                 }
             };
-            Ok((id, Property::Mute(mute)))
+            Ok(Property::Mute(mute))
         }
         // TODO: add missing cases
-        _ => Ok((id, Property::Unknown { name, data })),
+        _ => Ok(Property::Unknown {
+            name: name.to_owned(),
+            data,
+        }),
     }
 }
 

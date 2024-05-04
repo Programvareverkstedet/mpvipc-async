@@ -1,5 +1,5 @@
 use futures::{stream::StreamExt, Stream};
-use mpvipc::{parse_event_property, Event, Mpv, MpvError, MpvExt};
+use mpvipc::{parse_property, Event, Mpv, MpvError, MpvExt};
 use thiserror::Error;
 use tokio::time::sleep;
 use tokio::time::{timeout, Duration};
@@ -38,8 +38,8 @@ where
                     match event {
                         Some(Ok(event)) => {
                             match event {
-                                Event::PropertyChange { id: MPV_CHANNEL_ID, .. } => {
-                                    let property = parse_event_property(event).unwrap().1;
+                                Event::PropertyChange { id: MPV_CHANNEL_ID, name, data } => {
+                                    let property = parse_property(&name, data).unwrap();
                                     if !on_property(property.clone()) {
                                         return Err(PropertyCheckingThreadError::UnexpectedPropertyError(property))
                                     }

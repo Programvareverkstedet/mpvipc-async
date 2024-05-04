@@ -1,5 +1,5 @@
 use futures::StreamExt;
-use mpvipc::{parse_event_property, Event, Mpv, MpvDataType, MpvError, MpvExt, Property};
+use mpvipc::{parse_property, Event, Mpv, MpvDataType, MpvError, MpvExt, Property};
 
 fn seconds_to_hms(total: f64) -> String {
     let total = total as u64;
@@ -25,34 +25,36 @@ async fn main() -> Result<(), MpvError> {
     let mut events = mpv.get_event_stream().await;
     while let Some(Ok(event)) = events.next().await {
         match event {
-            mpvipc::Event::PropertyChange { .. } => match parse_event_property(event)? {
-                (1, Property::Path(Some(value))) => println!("\nPlaying: {}", value),
-                (2, Property::Pause(value)) => {
-                    println!("Pause: {}", value);
-                }
-                (3, Property::PlaybackTime(Some(value))) => {
-                    println!("Playback time: {}", seconds_to_hms(value));
-                }
-                (4, Property::Duration(Some(value))) => {
-                    println!("Duration: {}", seconds_to_hms(value));
-                }
-                (5, Property::Metadata(Some(value))) => {
-                    println!("File tags:");
-                    if let Some(MpvDataType::String(value)) = value.get("ARTIST") {
-                        println!(" Artist: {}", value);
+            mpvipc::Event::PropertyChange { name, data, .. } => {
+                match parse_property(&name, data)? {
+                    Property::Path(Some(value)) => println!("\nPlaying: {}", value),
+                    Property::Pause(value) => {
+                        println!("Pause: {}", value);
                     }
-                    if let Some(MpvDataType::String(value)) = value.get("ALBUM") {
-                        println!(" Album: {}", value);
+                    Property::PlaybackTime(Some(value)) => {
+                        println!("Playback time: {}", seconds_to_hms(value));
                     }
-                    if let Some(MpvDataType::String(value)) = value.get("TITLE") {
-                        println!(" Title: {}", value);
+                    Property::Duration(Some(value)) => {
+                        println!("Duration: {}", seconds_to_hms(value));
                     }
-                    if let Some(MpvDataType::String(value)) = value.get("TRACK") {
-                        println!(" Track: {}", value);
+                    Property::Metadata(Some(value)) => {
+                        println!("File tags:");
+                        if let Some(MpvDataType::String(value)) = value.get("ARTIST") {
+                            println!(" Artist: {}", value);
+                        }
+                        if let Some(MpvDataType::String(value)) = value.get("ALBUM") {
+                            println!(" Album: {}", value);
+                        }
+                        if let Some(MpvDataType::String(value)) = value.get("TITLE") {
+                            println!(" Title: {}", value);
+                        }
+                        if let Some(MpvDataType::String(value)) = value.get("TRACK") {
+                            println!(" Track: {}", value);
+                        }
                     }
+                    _ => (),
                 }
-                _ => (),
-            },
+            }
             Event::Shutdown => return Ok(()),
             Event::Unimplemented(_) => panic!("Unimplemented event"),
             _ => (),

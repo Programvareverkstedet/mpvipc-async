@@ -1,7 +1,5 @@
-use std::panic;
-
 use futures::{stream::StreamExt, SinkExt};
-use mpvipc::{parse_event_property, Mpv, MpvDataType, MpvExt, Property};
+use mpvipc::{Event, Mpv, MpvDataType, MpvExt};
 use serde_json::json;
 use test_log::test;
 use tokio::{net::UnixStream, task::JoinHandle};
@@ -51,19 +49,14 @@ async fn test_observe_event_successful() {
     tokio::spawn(async move {
         let event = mpv2.get_event_stream().await.next().await.unwrap().unwrap();
 
-        let data = match parse_event_property(event) {
-            Ok((_, Property::Unknown { name, data })) => {
-                assert_eq!(name, "volume");
-                data
+        assert_eq!(
+            event,
+            Event::PropertyChange {
+                id: 1,
+                name: "volume".to_string(),
+                data: Some(MpvDataType::Double(64.0))
             }
-            Ok((_, property)) => panic!("{:?}", property),
-            Err(err) => panic!("{:?}", err),
-        };
-        match data {
-            Some(MpvDataType::Double(data)) => assert_eq!(data, 64.0),
-            Some(data) => panic!("Unexpected value: {:?}", data),
-            None => panic!("No data"),
-        }
+        )
     });
 
     mpv.set_property("volume", 64.0).await.unwrap();

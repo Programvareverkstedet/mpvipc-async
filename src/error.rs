@@ -3,7 +3,7 @@
 use serde_json::{Map, Value};
 use thiserror::Error;
 
-use crate::MpvDataType;
+use crate::{MpvDataType, Property};
 
 /// Any error that can occur when interacting with mpv.
 #[derive(Error, Debug)]
@@ -42,6 +42,9 @@ pub enum MpvError {
         key: String,
         map: Map<String, Value>,
     },
+
+    #[error("Unexpected property: {0:?}")]
+    UnexpectedProperty(Property),
 
     #[error("Unknown error: {0}")]
     Other(String),
