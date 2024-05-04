@@ -109,7 +109,7 @@ impl TypeHandler for Vec<PlaylistEntry> {
                 expected_type: "Array<Value>".to_string(),
                 received: value.clone(),
             })
-            .map(|array| json_array_to_playlist(array))
+            .and_then(|array| json_array_to_playlist(array))
     }
 
     fn as_string(&self) -> String {
@@ -155,29 +155,65 @@ pub(crate) fn json_array_to_vec(array: &[Value]) -> Result<Vec<MpvDataType>, Mpv
     array.iter().map(json_to_value).collect()
 }
 
-pub(crate) fn json_array_to_playlist(array: &[Value]) -> Vec<PlaylistEntry> {
-    let mut output: Vec<PlaylistEntry> = Vec::new();
-    for (id, entry) in array.iter().enumerate() {
-        let mut filename: String = String::new();
-        let mut title: String = String::new();
-        let mut current: bool = false;
-        if let Value::String(ref f) = entry["filename"] {
-            filename = f.to_string();
+fn json_map_to_playlist_entry(
+    map: &serde_json::map::Map<String, Value>,
+) -> Result<PlaylistEntry, MpvError> {
+    let filename = match map.get("filename") {
+        Some(Value::String(s)) => s.to_string(),
+        Some(data) => {
+            return Err(MpvError::ValueContainsUnexpectedType {
+                expected_type: "String".to_owned(),
+                received: data.clone(),
+            })
         }
-        if let Value::String(ref t) = entry["title"] {
-            title = t.to_string();
+        None => return Err(MpvError::MissingMpvData),
+    };
+    let title = match map.get("title") {
+        Some(Value::String(s)) => s.to_string(),
+        Some(data) => {
+            return Err(MpvError::ValueContainsUnexpectedType {
+                expected_type: "String".to_owned(),
+                received: data.clone(),
+            })
         }
-        if let Value::Bool(ref b) = entry["current"] {
-            current = *b;
+        None => return Err(MpvError::MissingMpvData),
+    };
+    let current = match map.get("current") {
+        Some(Value::Bool(b)) => *b,
+        Some(data) => {
+            return Err(MpvError::ValueContainsUnexpectedType {
+                expected_type: "bool".to_owned(),
+                received: data.clone(),
+            })
         }
-        output.push(PlaylistEntry {
-            id,
-            filename,
-            title,
-            current,
-        });
-    }
-    output
+        None => return Err(MpvError::MissingMpvData),
+    };
+    Ok(PlaylistEntry {
+        id: 0,
+        filename,
+        title,
+        current,
+    })
+}
+
+pub(crate) fn json_array_to_playlist(array: &[Value]) -> Result<Vec<PlaylistEntry>, MpvError> {
+    array
+        .iter()
+        .map(|entry| match entry {
+            Value::Object(map) => json_map_to_playlist_entry(map),
+            data => Err(MpvError::ValueContainsUnexpectedType {
+                expected_type: "Map<String, Value>".to_owned(),
+                received: data.clone(),
+            }),
+        })
+        .enumerate()
+        .map(|(id, entry)| {
+            entry.map(|mut entry| {
+                entry.id = id;
+                entry
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -277,7 +313,7 @@ mod test {
     }
 
     #[test]
-    fn test_json_array_to_playlist() {
+    fn test_json_array_to_playlist() -> Result<(), MpvError> {
         let json = json!([
             {
                 "filename": "file1",
@@ -306,6 +342,8 @@ mod test {
             },
         ];
 
-        assert_eq!(json_array_to_playlist(json.as_array().unwrap()), expected);
+        assert_eq!(json_array_to_playlist(json.as_array().unwrap())?, expected);
+
+        Ok(())
     }
 }

@@ -12,8 +12,8 @@ async fn main() -> Result<(), MpvError> {
     let playlist = mpv.get_playlist().await?;
     println!("playlist: {:?}", playlist);
 
-    let playback_time: f64 = mpv.get_property("playback-time").await?;
-    println!("playback-time: {}", playback_time);
+    let playback_time: Option<f64> = mpv.get_property("playback-time").await?;
+    println!("playback-time: {:?}", playback_time);
 
     Ok(())
 }

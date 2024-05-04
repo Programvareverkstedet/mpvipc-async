@@ -134,18 +134,22 @@ impl IntoRawCommandPart for SeekOptions {
 pub trait GetPropertyTypeHandler: Sized {
     // TODO: fix this
     #[allow(async_fn_in_trait)]
-    async fn get_property_generic(instance: &Mpv, property: &str) -> Result<Self, MpvError>;
+    async fn get_property_generic(instance: &Mpv, property: &str)
+        -> Result<Option<Self>, MpvError>;
 }
 
 impl<T> GetPropertyTypeHandler for T
 where
     T: TypeHandler,
 {
-    async fn get_property_generic(instance: &Mpv, property: &str) -> Result<T, MpvError> {
+    async fn get_property_generic(instance: &Mpv, property: &str) -> Result<Option<T>, MpvError> {
         instance
             .get_property_value(property)
             .await
-            .and_then(T::get_value)
+            .and_then(|value| match value {
+                Some(v) => T::get_value(v).map(|v| Some(v)),
+                None => Ok(None),
+            })
     }
 }
 
@@ -172,7 +176,7 @@ where
         instance
             .command_sender
             .send((
-                MpvIpcCommand::SetProperty(property.to_owned(), value),
+                MpvIpcCommand::SetProperty(property.to_owned(), value.to_owned()),
                 res_tx,
             ))
             .await
@@ -277,7 +281,7 @@ impl Mpv {
         command: &str,
         args: &[&str],
     ) -> Result<Option<Value>, MpvError> {
-        let command = Vec::from(
+        let command_vec = Vec::from(
             [command]
                 .iter()
                 .chain(args.iter())
@@ -287,7 +291,7 @@ impl Mpv {
         );
         let (res_tx, res_rx) = oneshot::channel();
         self.command_sender
-            .send((MpvIpcCommand::Command(command), res_tx))
+            .send((MpvIpcCommand::Command(command_vec.clone()), res_tx))
             .await
             .map_err(|err| MpvError::InternalConnectionError(err.to_string()))?;
 
@@ -462,7 +466,7 @@ impl Mpv {
     pub async fn get_property<T: GetPropertyTypeHandler>(
         &self,
         property: &str,
-    ) -> Result<T, MpvError> {
+    ) -> Result<Option<T>, MpvError> {
         T::get_property_generic(self, property).await
     }
 
@@ -487,7 +491,7 @@ impl Mpv {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn get_property_value(&self, property: &str) -> Result<Value, MpvError> {
+    pub async fn get_property_value(&self, property: &str) -> Result<Option<Value>, MpvError> {
         let (res_tx, res_rx) = oneshot::channel();
         self.command_sender
             .send((MpvIpcCommand::GetProperty(property.to_owned()), res_tx))
@@ -495,9 +499,7 @@ impl Mpv {
             .map_err(|err| MpvError::InternalConnectionError(err.to_string()))?;
 
         match res_rx.await {
-            Ok(MpvIpcResponse(response)) => {
-                response.and_then(|value| value.ok_or(MpvError::MissingMpvData))
-            }
+            Ok(MpvIpcResponse(response)) => response,
             Err(err) => Err(MpvError::InternalConnectionError(err.to_string())),
         }
     }
@@ -526,11 +528,10 @@ impl Mpv {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn set_property<T: SetPropertyTypeHandler<T>>(
-        &self,
-        property: &str,
-        value: T,
-    ) -> Result<(), MpvError> {
-        T::set_property_generic(self, property, value).await
+    pub async fn set_property<T>(&self, property: &str, value: T) -> Result<(), MpvError>
+    where
+        T: SetPropertyTypeHandler<T> + Clone + fmt::Debug,
+    {
+        T::set_property_generic(self, property, value.clone()).await
     }
 }

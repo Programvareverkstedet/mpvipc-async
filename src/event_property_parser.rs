@@ -129,14 +129,19 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
             };
             Ok((id, Property::Metadata(metadata)))
         }
-        // "playlist" => {
-        //     let playlist = match data {
-        //         MpvDataType::Array(a) => json_array_to_playlist(&a),
-        //         MpvDataType::Null => Vec::new(),
-        //         _ => return Err(Error(ErrorCode::ValueDoesNotContainPlaylist)),
-        //     };
-        //     Ok((id, Property::Playlist(playlist)))
-        // }
+        "playlist" => {
+            let playlist = match data {
+                Some(MpvDataType::Array(a)) => mpv_array_to_playlist(&a)?,
+                None => Vec::new(),
+                Some(data) => {
+                    return Err(MpvError::DataContainsUnexpectedType {
+                        expected_type: "Array".to_owned(),
+                        received: data,
+                    })
+                }
+            };
+            Ok((id, Property::Playlist(playlist)))
+        }
         "playlist-pos" => {
             let playlist_pos = match data {
                 Some(MpvDataType::Usize(u)) => Some(u),
@@ -245,4 +250,60 @@ pub fn parse_event_property(event: Event) -> Result<(usize, Property), MpvError>
         // TODO: add missing cases
         _ => Ok((id, Property::Unknown { name, data })),
     }
+}
+
+fn mpv_data_to_playlist_entry(
+    map: &HashMap<String, MpvDataType>,
+) -> Result<PlaylistEntry, MpvError> {
+    let filename = match map.get("filename") {
+        Some(MpvDataType::String(s)) => s.to_string(),
+        Some(data) => {
+            return Err(MpvError::DataContainsUnexpectedType {
+                expected_type: "String".to_owned(),
+                received: data.clone(),
+            })
+        }
+        None => return Err(MpvError::MissingMpvData),
+    };
+    let title = match map.get("title") {
+        Some(MpvDataType::String(s)) => s.to_string(),
+        Some(data) => {
+            return Err(MpvError::DataContainsUnexpectedType {
+                expected_type: "String".to_owned(),
+                received: data.clone(),
+            })
+        }
+        None => return Err(MpvError::MissingMpvData),
+    };
+    let current = match map.get("current") {
+        Some(MpvDataType::Bool(b)) => *b,
+        Some(data) => {
+            return Err(MpvError::DataContainsUnexpectedType {
+                expected_type: "bool".to_owned(),
+                received: data.clone(),
+            })
+        }
+        None => return Err(MpvError::MissingMpvData),
+    };
+    Ok(PlaylistEntry {
+        id: 0,
+        filename,
+        title,
+        current,
+    })
+}
+
+fn mpv_array_to_playlist(array: &[MpvDataType]) -> Result<Vec<PlaylistEntry>, MpvError> {
+    array
+        .iter()
+        .map(|value| match value {
+            MpvDataType::HashMap(map) => mpv_data_to_playlist_entry(map),
+            _ => Err(MpvError::DataContainsUnexpectedType {
+                expected_type: "HashMap".to_owned(),
+                received: value.clone(),
+            }),
+        })
+        .enumerate()
+        .map(|(id, entry)| entry.map(|entry| PlaylistEntry { id, ..entry }))
+        .collect()
 }

@@ -141,12 +141,15 @@ pub trait MpvExt {
 
 impl MpvExt for Mpv {
     async fn get_metadata(&self) -> Result<HashMap<String, MpvDataType>, MpvError> {
-        self.get_property("metadata").await
+        self.get_property("metadata")
+            .await?
+            .ok_or(MpvError::MissingMpvData)
     }
 
     async fn get_playlist(&self) -> Result<Playlist, MpvError> {
         self.get_property::<Vec<PlaylistEntry>>("playlist")
-            .await
+            .await?
+            .ok_or(MpvError::MissingMpvData)
             .map(Playlist)
     }
 
@@ -174,15 +177,15 @@ impl MpvExt for Mpv {
         let enabled = match option {
             Switch::On => "yes",
             Switch::Off => "no",
-            Switch::Toggle => {
-                self.get_property::<String>("pause")
-                    .await
-                    .map(|s| match s.as_str() {
-                        "yes" => "no",
-                        "no" => "yes",
-                        _ => "no",
-                    })?
-            }
+            Switch::Toggle => self
+                .get_property::<String>("pause")
+                .await?
+                .ok_or(MpvError::MissingMpvData)
+                .map(|s| match s.as_str() {
+                    "yes" => "no",
+                    "no" => "yes",
+                    _ => "no",
+                })?,
         };
         self.set_property("pause", enabled).await
     }
@@ -238,16 +241,16 @@ impl MpvExt for Mpv {
     }
 
     async fn playlist_play_next(&self, id: usize) -> Result<(), MpvError> {
-        match self.get_property::<usize>("playlist-pos").await {
-            Ok(current_id) => {
-                self.run_command(MpvCommand::PlaylistMove {
-                    from: id,
-                    to: current_id + 1,
-                })
-                .await
-            }
-            Err(msg) => Err(msg),
-        }
+        let current_id = self
+            .get_property::<usize>("playlist-pos")
+            .await?
+            .ok_or(MpvError::MissingMpvData)?;
+
+        self.run_command(MpvCommand::PlaylistMove {
+            from: id,
+            to: current_id + 1,
+        })
+        .await
     }
 
     async fn playlist_remove_id(&self, id: usize) -> Result<(), MpvError> {
@@ -266,15 +269,15 @@ impl MpvExt for Mpv {
         let enabled = match option {
             Switch::On => "inf",
             Switch::Off => "no",
-            Switch::Toggle => {
-                self.get_property::<String>("loop-file")
-                    .await
-                    .map(|s| match s.as_str() {
-                        "inf" => "no",
-                        "no" => "inf",
-                        _ => "no",
-                    })?
-            }
+            Switch::Toggle => self
+                .get_property::<String>("loop-file")
+                .await?
+                .ok_or(MpvError::MissingMpvData)
+                .map(|s| match s.as_str() {
+                    "inf" => "no",
+                    "no" => "inf",
+                    _ => "no",
+                })?,
         };
         self.set_property("loop-file", enabled).await
     }
@@ -283,32 +286,32 @@ impl MpvExt for Mpv {
         let enabled = match option {
             Switch::On => "inf",
             Switch::Off => "no",
-            Switch::Toggle => {
-                self.get_property::<String>("loop-playlist")
-                    .await
-                    .map(|s| match s.as_str() {
-                        "inf" => "no",
-                        "no" => "inf",
-                        _ => "no",
-                    })?
-            }
+            Switch::Toggle => self
+                .get_property::<String>("loop-playlist")
+                .await?
+                .ok_or(MpvError::MissingMpvData)
+                .map(|s| match s.as_str() {
+                    "inf" => "no",
+                    "no" => "inf",
+                    _ => "no",
+                })?,
         };
-        self.set_property("loo-playlist", enabled).await
+        self.set_property("loop-playlist", enabled).await
     }
 
     async fn set_mute(&self, option: Switch) -> Result<(), MpvError> {
         let enabled = match option {
             Switch::On => "yes",
             Switch::Off => "no",
-            Switch::Toggle => {
-                self.get_property::<String>("mute")
-                    .await
-                    .map(|s| match s.as_str() {
-                        "yes" => "no",
-                        "no" => "yes",
-                        _ => "no",
-                    })?
-            }
+            Switch::Toggle => self
+                .get_property::<String>("mute")
+                .await?
+                .ok_or(MpvError::MissingMpvData)
+                .map(|s| match s.as_str() {
+                    "yes" => "no",
+                    "no" => "yes",
+                    _ => "no",
+                })?,
         };
         self.set_property("mute", enabled).await
     }
@@ -318,19 +321,15 @@ impl MpvExt for Mpv {
         input_speed: f64,
         option: NumberChangeOptions,
     ) -> Result<(), MpvError> {
-        match self.get_property::<f64>("speed").await {
-            Ok(speed) => match option {
-                NumberChangeOptions::Increase => {
-                    self.set_property("speed", speed + input_speed).await
-                }
+        let speed = self
+            .get_property::<f64>("speed")
+            .await?
+            .ok_or(MpvError::MissingMpvData)?;
 
-                NumberChangeOptions::Decrease => {
-                    self.set_property("speed", speed - input_speed).await
-                }
-
-                NumberChangeOptions::Absolute => self.set_property("speed", input_speed).await,
-            },
-            Err(msg) => Err(msg),
+        match option {
+            NumberChangeOptions::Increase => self.set_property("speed", speed + input_speed).await,
+            NumberChangeOptions::Decrease => self.set_property("speed", speed - input_speed).await,
+            NumberChangeOptions::Absolute => self.set_property("speed", input_speed).await,
         }
     }
 
@@ -339,19 +338,19 @@ impl MpvExt for Mpv {
         input_volume: f64,
         option: NumberChangeOptions,
     ) -> Result<(), MpvError> {
-        match self.get_property::<f64>("volume").await {
-            Ok(volume) => match option {
-                NumberChangeOptions::Increase => {
-                    self.set_property("volume", volume + input_volume).await
-                }
+        let volume = self
+            .get_property::<f64>("volume")
+            .await?
+            .ok_or(MpvError::MissingMpvData)?;
 
-                NumberChangeOptions::Decrease => {
-                    self.set_property("volume", volume - input_volume).await
-                }
-
-                NumberChangeOptions::Absolute => self.set_property("volume", input_volume).await,
-            },
-            Err(msg) => Err(msg),
+        match option {
+            NumberChangeOptions::Increase => {
+                self.set_property("volume", volume + input_volume).await
+            }
+            NumberChangeOptions::Decrease => {
+                self.set_property("volume", volume - input_volume).await
+            }
+            NumberChangeOptions::Absolute => self.set_property("volume", input_volume).await,
         }
     }
 

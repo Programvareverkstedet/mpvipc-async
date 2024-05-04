@@ -22,73 +22,77 @@ fn test_socket(answers: Vec<String>) -> (UnixStream, JoinHandle<Result<(), Lines
 }
 
 #[test(tokio::test)]
-async fn test_get_property_successful() {
+async fn test_get_property_successful() -> Result<(), MpvError> {
     let (server, join_handle) = test_socket(vec![
         json!({ "data": 100.0, "request_id": 0, "error": "success" }).to_string(),
     ]);
 
-    let mpv = Mpv::connect_socket(server).await.unwrap();
-    let volume: f64 = mpv.get_property("volume").await.unwrap();
+    let mpv = Mpv::connect_socket(server).await?;
+    let volume: Option<f64> = mpv.get_property("volume").await?;
 
-    assert_eq!(volume, 100.0);
+    assert_eq!(volume, Some(100.0));
     join_handle.await.unwrap().unwrap();
+
+    Ok(())
 }
 
 #[test(tokio::test)]
-async fn test_get_property_broken_pipe() {
+async fn test_get_property_broken_pipe() -> Result<(), MpvError> {
     let (server, join_handle) = test_socket(vec![]);
 
     let mpv = Mpv::connect_socket(server).await.unwrap();
     let maybe_volume = mpv.get_property::<f64>("volume").await;
 
-    match maybe_volume {
-        Err(MpvError::MpvSocketConnectionError(err)) => {
-            assert_eq!(err.to_string(), "Broken pipe (os error 32)");
-        }
-        _ => panic!("Unexpected result: {:?}", maybe_volume),
-    }
+    assert_eq!(
+        maybe_volume,
+        Err(MpvError::MpvSocketConnectionError(
+            "Broken pipe (os error 32)".to_string()
+        ))
+    );
+
     join_handle.await.unwrap().unwrap();
+
+    Ok(())
 }
 
 #[test(tokio::test)]
-async fn test_get_property_wrong_type() {
+async fn test_get_property_wrong_type() -> Result<(), MpvError> {
     let (server, join_handle) = test_socket(vec![
         json!({ "data": 100.0, "request_id": 0, "error": "success" }).to_string(),
     ]);
 
-    let mpv = Mpv::connect_socket(server).await.unwrap();
+    let mpv = Mpv::connect_socket(server).await?;
     let maybe_volume = mpv.get_property::<bool>("volume").await;
 
-    match maybe_volume {
+    assert_eq!(
+        maybe_volume,
         Err(MpvError::ValueContainsUnexpectedType {
-            expected_type,
-            received,
-        }) => {
-            assert_eq!(expected_type, "bool");
-            assert_eq!(received, json!(100.0));
-        }
-        _ => panic!("Unexpected result: {:?}", maybe_volume),
-    }
+            expected_type: "bool".to_string(),
+            received: json!(100.0)
+        })
+    );
     join_handle.await.unwrap().unwrap();
+
+    Ok(())
 }
 
 #[test(tokio::test)]
-async fn test_get_property_error() {
+async fn test_get_property_error() -> Result<(), MpvError> {
     let (server, join_handle) = test_socket(vec![
         json!({ "error": "property unavailable", "request_id": 0 }).to_string(),
     ]);
 
-    let mpv = Mpv::connect_socket(server).await.unwrap();
+    let mpv = Mpv::connect_socket(server).await?;
     let maybe_volume = mpv.get_property::<f64>("volume").await;
 
-    match maybe_volume {
-        Err(MpvError::MpvError(err)) => {
-            assert_eq!(err, "property unavailable");
-        }
-        _ => panic!("Unexpected result: {:?}", maybe_volume),
-    }
+    assert_eq!(
+        maybe_volume,
+        Err(MpvError::MpvError("property unavailable".to_string()))
+    );
 
     join_handle.await.unwrap().unwrap();
+
+    Ok(())
 }
 
 #[test(tokio::test)]
@@ -130,8 +134,8 @@ async fn test_get_property_simultaneous_requests() {
     let mpv_clone_1 = mpv.clone();
     let mpv_poller_1 = tokio::spawn(async move {
         loop {
-            let volume: f64 = mpv_clone_1.get_property("volume").await.unwrap();
-            assert_eq!(volume, 100.0);
+            let volume: Option<f64> = mpv_clone_1.get_property("volume").await.unwrap();
+            assert_eq!(volume, Some(100.0));
         }
     });
 
@@ -139,8 +143,8 @@ async fn test_get_property_simultaneous_requests() {
     let mpv_poller_2 = tokio::spawn(async move {
         loop {
             tokio::time::sleep(Duration::from_millis(1)).await;
-            let paused: bool = mpv_clone_2.get_property("pause").await.unwrap();
-            assert!(paused);
+            let paused: Option<bool> = mpv_clone_2.get_property("pause").await.unwrap();
+            assert_eq!(paused, Some(true));
         }
     });
 
@@ -173,7 +177,7 @@ async fn test_get_property_simultaneous_requests() {
 }
 
 #[test(tokio::test)]
-async fn test_get_playlist() {
+async fn test_get_playlist() -> Result<(), MpvError> {
     let expected = Playlist(vec![
         PlaylistEntry {
             id: 0,
@@ -208,22 +212,26 @@ async fn test_get_playlist() {
     })
     .to_string()]);
 
-    let mpv = Mpv::connect_socket(server).await.unwrap();
-    let playlist = mpv.get_playlist().await.unwrap();
+    let mpv = Mpv::connect_socket(server).await?;
+    let playlist = mpv.get_playlist().await?;
 
     assert_eq!(playlist, expected);
     join_handle.await.unwrap().unwrap();
+
+    Ok(())
 }
 
 #[test(tokio::test)]
-async fn test_get_playlist_empty() {
+async fn test_get_playlist_empty() -> Result<(), MpvError> {
     let (server, join_handle) = test_socket(vec![
         json!({ "data": [], "request_id": 0, "error": "success" }).to_string(),
     ]);
 
-    let mpv = Mpv::connect_socket(server).await.unwrap();
-    let playlist = mpv.get_playlist().await.unwrap();
+    let mpv = Mpv::connect_socket(server).await?;
+    let playlist = mpv.get_playlist().await?;
 
     assert_eq!(playlist, Playlist(vec![]));
     join_handle.await.unwrap().unwrap();
+
+    Ok(())
 }
