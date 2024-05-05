@@ -77,7 +77,7 @@ async fn test_get_property_wrong_type() -> Result<(), MpvError> {
 }
 
 #[test(tokio::test)]
-async fn test_get_property_error() -> Result<(), MpvError> {
+async fn test_get_unavailable_property() -> Result<(), MpvError> {
     let (server, join_handle) = test_socket(vec![
         json!({ "error": "property unavailable", "request_id": 0 }).to_string(),
     ]);
@@ -87,7 +87,7 @@ async fn test_get_property_error() -> Result<(), MpvError> {
 
     assert_eq!(
         maybe_volume,
-        Err(MpvError::MpvError("property unavailable".to_string()))
+        Ok(None),
     );
 
     join_handle.await.unwrap().unwrap();
@@ -119,7 +119,7 @@ async fn test_get_property_simultaneous_requests() {
                     }
                     _ => {
                         let response =
-                            json!({ "error": "property unavailable", "request_id": 0 }).to_string();
+                            json!({ "error": "property not found", "request_id": 0 }).to_string();
                         framed.send(response).await.unwrap();
                     }
                 }
@@ -155,7 +155,7 @@ async fn test_get_property_simultaneous_requests() {
             let maybe_volume = mpv_clone_3.get_property::<f64>("nonexistent").await;
             match maybe_volume {
                 Err(MpvError::MpvError(err)) => {
-                    assert_eq!(err, "property unavailable");
+                    assert_eq!(err, "property not found");
                 }
                 _ => panic!("Unexpected result: {:?}", maybe_volume),
             }
@@ -182,19 +182,19 @@ async fn test_get_playlist() -> Result<(), MpvError> {
         PlaylistEntry {
             id: 0,
             filename: "file1".to_string(),
-            title: "title1".to_string(),
+            title: Some("title1".to_string()),
             current: false,
         },
         PlaylistEntry {
             id: 1,
             filename: "file2".to_string(),
-            title: "title2".to_string(),
+            title: Some("title2".to_string()),
             current: true,
         },
         PlaylistEntry {
             id: 2,
             filename: "file3".to_string(),
-            title: "title3".to_string(),
+            title: Some("title3".to_string()),
             current: false,
         },
     ]);

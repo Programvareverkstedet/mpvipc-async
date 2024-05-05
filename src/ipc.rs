@@ -224,6 +224,7 @@ fn parse_mpv_response_data(value: Value) -> Result<Option<Value>, MpvError> {
         })
         .and_then(|(error, data)| match error {
             "success" => Ok(data),
+            "property unavailable" => Ok(None),
             err => Err(MpvError::MpvError(err.to_string())),
         });
 

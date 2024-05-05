@@ -34,11 +34,12 @@ pub enum Property {
     PlaylistPos(Option<usize>),
     LoopFile(LoopProperty),
     LoopPlaylist(LoopProperty),
-    TimePos(f64),
-    TimeRemaining(f64),
+    TimePos(Option<f64>),
+    TimeRemaining(Option<f64>),
     Speed(f64),
     Volume(f64),
     Mute(bool),
+    EofReached(bool),
     Unknown {
         name: String,
         data: Option<MpvDataType>,
@@ -204,31 +205,28 @@ pub fn parse_property(name: &str, data: Option<MpvDataType>) -> Result<Property,
         }
         "time-pos" => {
             let time_pos = match data {
-                Some(MpvDataType::Double(d)) => d,
+                Some(MpvDataType::Double(d)) => Some(d),
                 Some(data) => {
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "f64".to_owned(),
                         received: data,
                     })
                 }
-                None => {
-                    return Err(MpvError::MissingMpvData);
-                }
+                None => None,
             };
+
             Ok(Property::TimePos(time_pos))
         }
         "time-remaining" => {
             let time_remaining = match data {
-                Some(MpvDataType::Double(d)) => d,
+                Some(MpvDataType::Double(d)) => Some(d),
                 Some(data) => {
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "f64".to_owned(),
                         received: data,
                     })
                 }
-                None => {
-                    return Err(MpvError::MissingMpvData);
-                }
+                None => None,
             };
             Ok(Property::TimeRemaining(time_remaining))
         }
@@ -277,6 +275,19 @@ pub fn parse_property(name: &str, data: Option<MpvDataType>) -> Result<Property,
             };
             Ok(Property::Mute(mute))
         }
+        "eof-reached" => {
+          let eof_reached = match data {
+              Some(MpvDataType::Bool(b)) => b,
+              Some(data) => {
+                  return Err(MpvError::DataContainsUnexpectedType {
+                      expected_type: "bool".to_owned(),
+                      received: data,
+                  })
+              }
+              None => true,
+          };
+          Ok(Property::EofReached(eof_reached))
+        }
         // TODO: add missing cases
         _ => Ok(Property::Unknown {
             name: name.to_owned(),
@@ -299,14 +310,14 @@ fn mpv_data_to_playlist_entry(
         None => return Err(MpvError::MissingMpvData),
     };
     let title = match map.get("title") {
-        Some(MpvDataType::String(s)) => s.to_string(),
+        Some(MpvDataType::String(s)) => Some(s.to_string()),
         Some(data) => {
             return Err(MpvError::DataContainsUnexpectedType {
                 expected_type: "String".to_owned(),
                 received: data.clone(),
             })
         }
-        None => return Err(MpvError::MissingMpvData),
+        None => None,
     };
     let current = match map.get("current") {
         Some(MpvDataType::Bool(b)) => *b,
@@ -316,7 +327,7 @@ fn mpv_data_to_playlist_entry(
                 received: data.clone(),
             })
         }
-        None => return Err(MpvError::MissingMpvData),
+        None => false
     };
     Ok(PlaylistEntry {
         id: 0,

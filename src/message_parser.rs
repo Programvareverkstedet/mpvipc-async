@@ -169,14 +169,14 @@ fn json_map_to_playlist_entry(
         None => return Err(MpvError::MissingMpvData),
     };
     let title = match map.get("title") {
-        Some(Value::String(s)) => s.to_string(),
+        Some(Value::String(s)) => Some(s.to_string()),
         Some(data) => {
             return Err(MpvError::ValueContainsUnexpectedType {
                 expected_type: "String".to_owned(),
                 received: data.clone(),
             })
         }
-        None => return Err(MpvError::MissingMpvData),
+        None => None,
     };
     let current = match map.get("current") {
         Some(Value::Bool(b)) => *b,
@@ -186,7 +186,7 @@ fn json_map_to_playlist_entry(
                 received: data.clone(),
             })
         }
-        None => return Err(MpvError::MissingMpvData),
+        None => false,
     };
     Ok(PlaylistEntry {
         id: 0,
@@ -324,6 +324,10 @@ mod test {
                 "filename": "file2",
                 "title": "title2",
                 "current": false
+            },
+            {
+                "filename": "file3",
+                "current": false
             }
         ]);
 
@@ -331,13 +335,19 @@ mod test {
             PlaylistEntry {
                 id: 0,
                 filename: "file1".to_string(),
-                title: "title1".to_string(),
+                title: Some("title1".to_string()),
                 current: true,
             },
             PlaylistEntry {
                 id: 1,
                 filename: "file2".to_string(),
-                title: "title2".to_string(),
+                title: Some("title2".to_string()),
+                current: false,
+            },
+            PlaylistEntry {
+                id: 2,
+                filename: "file3".to_string(),
+                title: None,
                 current: false,
             },
         ];

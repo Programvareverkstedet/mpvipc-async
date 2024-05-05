@@ -90,7 +90,7 @@ pub struct Playlist(pub Vec<PlaylistEntry>);
 pub struct PlaylistEntry {
     pub id: usize,
     pub filename: String,
-    pub title: String,
+    pub title: Option<String>,
     pub current: bool,
 }
 

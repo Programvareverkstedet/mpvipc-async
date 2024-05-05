@@ -154,10 +154,10 @@ pub trait MpvExt {
     async fn get_speed(&self) -> Result<f64, MpvError>;
 
     /// Get the current position in the current video.
-    async fn get_time_pos(&self) -> Result<f64, MpvError>;
+    async fn get_time_pos(&self) -> Result<Option<f64>, MpvError>;
 
     /// Get the amount of time remaining in the current video.
-    async fn get_time_remaining(&self) -> Result<f64, MpvError>;
+    async fn get_time_remaining(&self) -> Result<Option<f64>, MpvError>;
 
     /// Get the total duration of the current video.
     async fn get_duration(&self) -> Result<f64, MpvError>;
@@ -415,7 +415,7 @@ impl MpvExt for Mpv {
         }
     }
 
-    async fn get_time_pos(&self) -> Result<f64, MpvError> {
+    async fn get_time_pos(&self) -> Result<Option<f64>, MpvError> {
         let data = self.get_property("time-pos").await?;
         match parse_property("time-pos", data)? {
             Property::TimePos(value) => Ok(value),
@@ -423,7 +423,7 @@ impl MpvExt for Mpv {
         }
     }
 
-    async fn get_time_remaining(&self) -> Result<f64, MpvError> {
+    async fn get_time_remaining(&self) -> Result<Option<f64>, MpvError> {
         let data = self.get_property("time-remaining").await?;
         match parse_property("time-remaining", data)? {
             Property::TimeRemaining(value) => Ok(value),
