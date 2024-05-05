@@ -5,12 +5,12 @@
     fenix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-
   outputs = { self, nixpkgs, fenix }@inputs:
-  let 
+  let
     systems = [
       "x86_64-linux"
       "aarch64-linux"
+      "x86_64-darwin"
       "aarch64-darwin"
     ];
     forAllSystems = f: nixpkgs.lib.genAttrs systems (system: let
@@ -32,7 +32,7 @@
         pkgs.grcov
         pkgs.cargo-nextest
       ];
-      RUST_SRC_PATH = "${toolchain.rust-src}/lib/rustlib/src/rust/";
+      RUST_SRC_PATH = "${toolchain.rust-src}/lib/rustlib/src/rust/library";
     });
   };
 }
