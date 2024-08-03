@@ -3,7 +3,7 @@ name = "mpvipc-async"
 version = "0.1.0"
 authors = [
   "Jonas Frei <freijon@pm.me>",
-  "h7x4 <h7x4@nani.wtf>"
+  "Øystein Tveit <oysteikt@pvv.ntnu.no>"
 ]
 description = "A small library which provides bindings to control existing mpv instances through sockets."
 license = "GPL-3.0"
