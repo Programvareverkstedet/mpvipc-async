@@ -1,5 +1,5 @@
 use futures::{stream::StreamExt, SinkExt};
-use mpvipc::{Event, Mpv, MpvDataType, MpvExt};
+use mpvipc_async::{Event, Mpv, MpvDataType, MpvExt};
 use serde_json::json;
 use test_log::test;
 use tokio::{net::UnixStream, task::JoinHandle};

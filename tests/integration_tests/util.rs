@@ -1,6 +1,6 @@
 use std::{path::Path, time::Duration};
 
-use mpvipc::{Mpv, MpvError};
+use mpvipc_async::{Mpv, MpvError};
 use tokio::{
     process::{Child, Command},
     time::{sleep, timeout},

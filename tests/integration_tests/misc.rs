@@ -1,4 +1,4 @@
-use mpvipc::{MpvError, MpvExt};
+use mpvipc_async::{MpvError, MpvExt};
 
 use super::*;
 

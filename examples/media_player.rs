@@ -1,5 +1,5 @@
 use futures::StreamExt;
-use mpvipc::{parse_property, Event, Mpv, MpvDataType, MpvError, MpvExt, Property};
+use mpvipc_async::{parse_property, Event, Mpv, MpvDataType, MpvError, MpvExt, Property};
 
 fn seconds_to_hms(total: f64) -> String {
     let total = total as u64;
@@ -25,7 +25,7 @@ async fn main() -> Result<(), MpvError> {
     let mut events = mpv.get_event_stream().await;
     while let Some(Ok(event)) = events.next().await {
         match event {
-            mpvipc::Event::PropertyChange { name, data, .. } => {
+            mpvipc_async::Event::PropertyChange { name, data, .. } => {
                 match parse_property(&name, data)? {
                     Property::Path(Some(value)) => println!("\nPlaying: {}", value),
                     Property::Pause(value) => {

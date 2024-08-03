@@ -1,15 +1,15 @@
 [package]
-name = "mpvipc"
-version = "1.3.0"
+name = "mpvipc-async"
+version = "0.1.0"
 authors = [
   "Jonas Frei <freijon@pm.me>",
   "h7x4 <h7x4@nani.wtf>"
 ]
 description = "A small library which provides bindings to control existing mpv instances through sockets."
 license = "GPL-3.0"
-homepage = "https://git.pvv.ntnu.no/oysteikt/mpvipc"
-repository = "https://git.pvv.ntnu.no/oysteikt/mpvipc"
-documentation = "https://pvv.ntnu.no/~oysteikt/gitea/mpvipc/master/docs/mpvipc/"
+homepage = "https://git.pvv.ntnu.no/oysteikt/mpvipc-async"
+repository = "https://git.pvv.ntnu.no/oysteikt/mpvipc-async"
+documentation = "https://pvv.ntnu.no/~oysteikt/gitea/mpvipc-async/master/docs/mpvipc-async/"
 edition = "2021"
 rust-version = "1.75"
 

@@ -1,7 +1,7 @@
-[![Coverage](https://pvv.ntnu.no/~oysteikt/gitea/mpvipc/master/coverage/badges/for_the_badge.svg)](https://pvv.ntnu.no/~oysteikt/gitea/mpvipc/master/coverage/src/)
-[![Docs](https://img.shields.io/badge/docs-blue?style=for-the-badge&logo=rust)](https://pvv.ntnu.no/~oysteikt/gitea/mpvipc/master/docs/mpvipc/)
+[![Coverage](https://pvv.ntnu.no/~oysteikt/gitea/mpvipc-async/master/coverage/badges/for_the_badge.svg)](https://pvv.ntnu.no/~oysteikt/gitea/mpvipc-async/master/coverage/src/)
+[![Docs](https://img.shields.io/badge/docs-blue?style=for-the-badge&logo=rust)](https://pvv.ntnu.no/~oysteikt/gitea/mpvipc-async/master/docs/mpvipc_async/)
 
-# mpvipc
+# mpvipc-async
 
 > **NOTE:** This is a fork of [gitlab.com/mpv-ipc/mpvipc](https://gitlab.com/mpv-ipc/mpvipc), which introduces a lot of changes to be able to use the library asynchronously with [tokio](https://github.com/tokio-rs/tokio).
 
@@ -26,7 +26,7 @@ $ mpv --input-ipc-server=/tmp/mpv.sock --idle
 Here is a small code example which connects to the socket `/tmp/mpv.sock` and toggles playback.
 
 ```rust
-use mpvipc::*;
+use mpvipc_async::*;
 
 #[tokio::main]
 async fn main() -> Result<(), MpvError> {

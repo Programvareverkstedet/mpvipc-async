@@ -1,5 +1,5 @@
 use futures::{stream::StreamExt, Stream};
-use mpvipc::{parse_property, Event, Mpv, MpvError, MpvExt};
+use mpvipc_async::{parse_property, Event, Mpv, MpvError, MpvExt, Property};
 use thiserror::Error;
 use tokio::time::sleep;
 use tokio::time::{timeout, Duration};
@@ -13,14 +13,14 @@ const MPV_CHANNEL_ID: usize = 1337;
 #[derive(Error, Debug)]
 enum PropertyCheckingThreadError {
     #[error("Unexpected property: {0:?}")]
-    UnexpectedPropertyError(mpvipc::Property),
+    UnexpectedPropertyError(Property),
 
     #[error(transparent)]
     MpvError(#[from] MpvError),
 }
 
 /// This function will create an ongoing tokio task that collects [`Event::PropertyChange`] events,
-/// and parses them into [`mpvipc::Property`]s. It will then run the property through the provided
+/// and parses them into [`Property`]s. It will then run the property through the provided
 /// closure, and return an error if the closure returns false.
 ///
 /// The returned cancellation token can be used to stop the task.
@@ -32,7 +32,7 @@ fn create_interruptable_event_property_checking_thread<T>(
     tokio_util::sync::CancellationToken,
 )
 where
-    T: Fn(mpvipc::Property) -> bool + Send + 'static,
+    T: Fn(Property) -> bool + Send + 'static,
 {
     let cancellation_token = tokio_util::sync::CancellationToken::new();
     let cancellation_token_clone = cancellation_token.clone();
@@ -122,7 +122,7 @@ async fn test_highlevel_event_pause() -> Result<(), MpvError> {
     let events = mpv.get_event_stream().await;
     let (handle, cancellation_token) =
         create_interruptable_event_property_checking_thread(events, |property| match property {
-            mpvipc::Property::Pause(_) => {
+            Property::Pause(_) => {
                 log::debug!("{:?}", property);
                 true
             }
@@ -150,7 +150,7 @@ async fn test_highlevel_event_volume() -> Result<(), MpvError> {
     let events = mpv.get_event_stream().await;
     let (handle, cancellation_token) =
         create_interruptable_event_property_checking_thread(events, |property| match property {
-            mpvipc::Property::Volume(_) => {
+            Property::Volume(_) => {
                 log::trace!("{:?}", property);
                 true
             }
@@ -180,7 +180,7 @@ async fn test_highlevel_event_mute() -> Result<(), MpvError> {
     let events = mpv.get_event_stream().await;
     let (handle, cancellation_token) =
         create_interruptable_event_property_checking_thread(events, |property| match property {
-            mpvipc::Property::Mute(_) => {
+            Property::Mute(_) => {
                 log::trace!("{:?}", property);
                 true
             }
@@ -209,7 +209,7 @@ async fn test_highlevel_event_duration() -> Result<(), MpvError> {
     let events = mpv.get_event_stream().await;
     let (handle, cancellation_token) =
         create_interruptable_event_property_checking_thread(events, |property| match property {
-            mpvipc::Property::Duration(_) => {
+            Property::Duration(_) => {
                 log::trace!("{:?}", property);
                 true
             }

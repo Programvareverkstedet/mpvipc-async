@@ -99,7 +99,7 @@ jobs:
         uses: https://git.pvv.ntnu.no/oysteikt/rsync-action@main
         with:
           source: target/coverage/html/
-          target: mpvipc/${{ gitea.ref_name }}/coverage/
+          target: mpvipc-async/${{ gitea.ref_name }}/coverage/
           username: oysteikt
           ssh-key: ${{ secrets.OYSTEIKT_GITEA_WEBDOCS_SSH_KEY }}
           host: microbel.pvv.ntnu.no
@@ -126,7 +126,7 @@ jobs:
         uses: https://git.pvv.ntnu.no/oysteikt/rsync-action@main
         with:
           source: target/doc/
-          target: mpvipc/${{ gitea.ref_name }}/docs/
+          target: mpvipc-async/${{ gitea.ref_name }}/docs/
           username: oysteikt
           ssh-key: ${{ secrets.OYSTEIKT_GITEA_WEBDOCS_SSH_KEY }}
           host: microbel.pvv.ntnu.no

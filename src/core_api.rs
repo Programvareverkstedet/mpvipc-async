@@ -321,7 +321,7 @@ impl Mpv {
     ///
     /// # Example
     /// ```
-    /// use mpvipc::{Mpv, MpvError};
+    /// use mpvipc_async::{Mpv, MpvError};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), MpvError> {
@@ -453,7 +453,7 @@ impl Mpv {
     ///
     /// # Example
     /// ```
-    /// use mpvipc::{Mpv, MpvError};
+    /// use mpvipc_async::{Mpv, MpvError};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), MpvError> {
@@ -482,7 +482,7 @@ impl Mpv {
     /// # Example
     ///
     /// ```
-    /// use mpvipc::{Mpv, MpvError};
+    /// use mpvipc_async::{Mpv, MpvError};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), MpvError> {
@@ -521,7 +521,7 @@ impl Mpv {
     ///
     /// # Example
     /// ```
-    /// use mpvipc::{Mpv, MpvError};
+    /// use mpvipc_async::{Mpv, MpvError};
     /// async fn main() -> Result<(), MpvError> {
     ///     let mpv = Mpv::connect("/tmp/mpvsocket").await?;
     ///     mpv.set_property("pause", true).await?;
