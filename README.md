@@ -3,14 +3,17 @@
 
 # mpvipc
 
+> **NOTE:** This is a fork of [gitlab.com/mpv-ipc/mpvipc](https://gitlab.com/mpv-ipc/mpvipc), which introduces a lot of changes to be able to use the library asynchronously with [tokio](https://github.com/tokio-rs/tokio).
+
+---
+
 A small library which provides bindings to control existing mpv instances through sockets.
 
 ## Dependencies
 
-- `mpv`
-- `cargo` (make dependency)
-- `cargo-nextest` (test depencency)
-- `grcov` (test depencency)
+- `mpv` (runtime dependency)
+- `cargo-nextest` (optional test depencency)
+- `grcov` (optional test depencency)
 
 ## Example
 
@@ -29,6 +32,6 @@ use mpvipc::*;
 async fn main() -> Result<(), MpvError> {
     let mpv = Mpv::connect("/tmp/mpv.sock").await?;
     let paused: bool = mpv.get_property("pause").await?;
-    mpv.set_property("pause", !paused).expect("Error pausing");
+    mpv.set_property("pause", !paused).await.expect("Error pausing");
 }
 ```
