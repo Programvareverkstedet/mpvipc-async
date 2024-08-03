@@ -1,5 +1,5 @@
-[![Coverage](https://pvv.ntnu.no/~oysteikt/gitea/mpvipc-async/master/coverage/badges/for_the_badge.svg)](https://pvv.ntnu.no/~oysteikt/gitea/mpvipc-async/master/coverage/src/)
-[![Docs](https://img.shields.io/badge/docs-blue?style=for-the-badge&logo=rust)](https://pvv.ntnu.no/~oysteikt/gitea/mpvipc-async/master/docs/mpvipc_async/)
+[![Coverage](https://pvv.ntnu.no/~oysteikt/gitea/mpvipc-async/main/coverage/badges/for_the_badge.svg)](https://pvv.ntnu.no/~oysteikt/gitea/mpvipc-async/main/coverage/src/)
+[![Docs](https://img.shields.io/badge/docs-blue?style=for-the-badge&logo=rust)](https://pvv.ntnu.no/~oysteikt/gitea/mpvipc-async/main/docs/mpvipc_async/)
 
 # mpvipc-async
 
