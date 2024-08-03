@@ -209,9 +209,16 @@ pub(crate) fn parse_event(raw_event: MpvIpcEvent) -> Result<Event, MpvError> {
                 "shutdown" => Ok(Event::Shutdown),
                 "log-message" => parse_log_message(event),
                 "hook" => parse_hook(event),
+
+                // TODO: fix these. They are asynchronous responses to different requests.
+                //       see:
+                //         - https://github.com/mpv-player/mpv/blob/5f768a688b706cf94041adf5bed7c7004af2ec5a/libmpv/client.h#L1158-L1160
+                //         - https://github.com/mpv-player/mpv/blob/5f768a688b706cf94041adf5bed7c7004af2ec5a/libmpv/client.h#L1095-L1098
+                //         - https://github.com/mpv-player/mpv/blob/5f768a688b706cf94041adf5bed7c7004af2ec5a/libmpv/client.h#L972-L982
                 // "get-property-reply" =>
                 // "set-property-reply" =>
                 // "command-reply" =>
+
                 "client-message" => parse_client_message(event),
                 "video-reconfig" => Ok(Event::VideoReconfig),
                 "audio-reconfig" => Ok(Event::AudioReconfig),
