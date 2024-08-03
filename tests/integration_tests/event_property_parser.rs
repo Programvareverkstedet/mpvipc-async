@@ -19,6 +19,11 @@ enum PropertyCheckingThreadError {
     MpvError(#[from] MpvError),
 }
 
+/// This function will create an ongoing tokio task that collects [`Event::PropertyChange`] events,
+/// and parses them into [`mpvipc::Property`]s. It will then run the property through the provided
+/// closure, and return an error if the closure returns false.
+///
+/// The returned cancellation token can be used to stop the task.
 fn create_interruptable_event_property_checking_thread<T>(
     mut events: impl Stream<Item = Result<Event, MpvError>> + Unpin + Send + 'static,
     on_property: T,
@@ -61,6 +66,9 @@ where
     (handle, cancellation_token)
 }
 
+/// This helper function will gracefully shut down both the event checking thread and the mpv process.
+/// It will also return an error if the event checking thread happened to panic, or if it times out
+/// The timeout is hardcoded to 500ms.
 async fn graceful_shutdown(
     cancellation_token: tokio_util::sync::CancellationToken,
     handle: tokio::task::JoinHandle<Result<(), PropertyCheckingThreadError>>,
@@ -103,6 +111,7 @@ async fn graceful_shutdown(
     Ok(())
 }
 
+/// Test correct parsing of different values of the "pause" property
 #[test(tokio::test)]
 #[cfg(target_family = "unix")]
 async fn test_highlevel_event_pause() -> Result<(), MpvError> {
@@ -131,6 +140,7 @@ async fn test_highlevel_event_pause() -> Result<(), MpvError> {
     Ok(())
 }
 
+/// Test correct parsing of different values of the "volume" property
 #[test(tokio::test)]
 #[cfg(target_family = "unix")]
 async fn test_highlevel_event_volume() -> Result<(), MpvError> {
@@ -160,6 +170,7 @@ async fn test_highlevel_event_volume() -> Result<(), MpvError> {
     Ok(())
 }
 
+/// Test correct parsing of different values of the "mute" property
 #[test(tokio::test)]
 #[cfg(target_family = "unix")]
 async fn test_highlevel_event_mute() -> Result<(), MpvError> {
@@ -187,6 +198,7 @@ async fn test_highlevel_event_mute() -> Result<(), MpvError> {
     Ok(())
 }
 
+/// Test correct parsing of different values of the "duration" property
 #[test(tokio::test)]
 #[cfg(target_family = "unix")]
 async fn test_highlevel_event_duration() -> Result<(), MpvError> {
