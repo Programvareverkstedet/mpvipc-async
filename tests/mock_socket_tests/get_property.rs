@@ -85,10 +85,7 @@ async fn test_get_unavailable_property() -> Result<(), MpvError> {
     let mpv = Mpv::connect_socket(server).await?;
     let maybe_volume = mpv.get_property::<f64>("volume").await;
 
-    assert_eq!(
-        maybe_volume,
-        Ok(None),
-    );
+    assert_eq!(maybe_volume, Ok(None),);
 
     join_handle.await.unwrap().unwrap();
 

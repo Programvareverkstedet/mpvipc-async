@@ -218,7 +218,6 @@ pub(crate) fn parse_event(raw_event: MpvIpcEvent) -> Result<Event, MpvError> {
                 // "get-property-reply" =>
                 // "set-property-reply" =>
                 // "command-reply" =>
-
                 "client-message" => parse_client_message(event),
                 "video-reconfig" => Ok(Event::VideoReconfig),
                 "audio-reconfig" => Ok(Event::AudioReconfig),

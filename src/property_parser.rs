@@ -276,17 +276,17 @@ pub fn parse_property(name: &str, data: Option<MpvDataType>) -> Result<Property,
             Ok(Property::Mute(mute))
         }
         "eof-reached" => {
-          let eof_reached = match data {
-              Some(MpvDataType::Bool(b)) => b,
-              Some(data) => {
-                  return Err(MpvError::DataContainsUnexpectedType {
-                      expected_type: "bool".to_owned(),
-                      received: data,
-                  })
-              }
-              None => true,
-          };
-          Ok(Property::EofReached(eof_reached))
+            let eof_reached = match data {
+                Some(MpvDataType::Bool(b)) => b,
+                Some(data) => {
+                    return Err(MpvError::DataContainsUnexpectedType {
+                        expected_type: "bool".to_owned(),
+                        received: data,
+                    })
+                }
+                None => true,
+            };
+            Ok(Property::EofReached(eof_reached))
         }
         // TODO: add missing cases
         _ => Ok(Property::Unknown {
@@ -327,7 +327,7 @@ fn mpv_data_to_playlist_entry(
                 received: data.clone(),
             })
         }
-        None => false
+        None => false,
     };
     Ok(PlaylistEntry {
         id: 0,
