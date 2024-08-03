@@ -319,8 +319,8 @@ impl MpvExt for Mpv {
 
     async fn set_playback(&self, option: Switch) -> Result<(), MpvError> {
         let enabled = match option {
-            Switch::On => "yes",
-            Switch::Off => "no",
+            Switch::On => "no",
+            Switch::Off => "yes",
             Switch::Toggle => {
                 if self.is_playing().await? {
                     "no"
