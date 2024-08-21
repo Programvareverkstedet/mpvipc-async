@@ -96,7 +96,7 @@ jobs:
             target/coverage/
 
       - name: Upload test report
-        uses: https://git.pvv.ntnu.no/oysteikt/rsync-action@main
+        uses: https://git.pvv.ntnu.no/Projects/rsync-action@main
         with:
           source: target/coverage/html/
           target: mpvipc-async/${{ gitea.ref_name }}/coverage/
@@ -123,7 +123,7 @@ jobs:
         run: cargo doc --all-features --document-private-items --release
 
       - name: Transfer files
-        uses: https://git.pvv.ntnu.no/oysteikt/rsync-action@main
+        uses: https://git.pvv.ntnu.no/Projects/rsync-action@main
         with:
           source: target/doc/
           target: mpvipc-async/${{ gitea.ref_name }}/docs/
