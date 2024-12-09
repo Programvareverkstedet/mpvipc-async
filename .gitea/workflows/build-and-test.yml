@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest-personal
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
@@ -24,7 +24,7 @@ jobs:
         run: cargo build --all-features --verbose --release
 
   check:
-    runs-on: ubuntu-latest-personal
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
@@ -45,7 +45,7 @@ jobs:
         run: cargo clippy --all-features -- --deny warnings
 
   test:
-    runs-on: ubuntu-latest-personal
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: cargo-bins/cargo-binstall@main
@@ -106,7 +106,7 @@ jobs:
           known-hosts: "microbel.pvv.ntnu.no ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEq0yasKP0mH6PI6ypmuzPzMnbHELo9k+YB5yW534aKudKZS65YsHJKQ9vapOtmegrn5MQbCCgrshf+/XwZcjbM="
 
   docs:
-    runs-on: ubuntu-latest-personal
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
