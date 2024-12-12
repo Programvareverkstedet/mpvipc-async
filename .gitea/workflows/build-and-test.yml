@@ -9,13 +9,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Install latest nightly toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-            toolchain: nightly
-            override: true
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
@@ -26,13 +23,11 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Install latest nightly toolchain
-        uses: actions-rs/toolchain@v1
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-            toolchain: nightly
-            override: true
             components: rustfmt, clippy
 
       - name: Cache dependencies
@@ -47,21 +42,18 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: cargo-bins/cargo-binstall@main
+      - uses: actions/checkout@v4
+
+      - name: Install cargo binstall
+        uses: cargo-bins/cargo-binstall@main
 
       - name: Install mpv
         run: apt-get update && apt-get install -y mpv
 
-      - name: Install latest nightly toolchain
-        uses: actions-rs/toolchain@v1
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
         with:
-            toolchain: nightly
-            override: true
             components: llvm-tools-preview
-
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
 
       - name: Install nextest
         run: cargo binstall -y cargo-nextest --secure
@@ -96,25 +88,22 @@ jobs:
             target/coverage/
 
       - name: Upload test report
-        uses: https://git.pvv.ntnu.no/Projects/rsync-action@main
+        uses: https://git.pvv.ntnu.no/Projects/rsync-action@v1
         with:
           source: target/coverage/html/
-          target: mpvipc-async/${{ gitea.ref_name }}/coverage/
-          username: oysteikt
-          ssh-key: ${{ secrets.OYSTEIKT_GITEA_WEBDOCS_SSH_KEY }}
-          host: microbel.pvv.ntnu.no
-          known-hosts: "microbel.pvv.ntnu.no ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEq0yasKP0mH6PI6ypmuzPzMnbHELo9k+YB5yW534aKudKZS65YsHJKQ9vapOtmegrn5MQbCCgrshf+/XwZcjbM="
+          target: ${{ gitea.ref_name }}/coverage/
+          username: gitea-web
+          ssh-key: ${{ secrets.WEB_SYNC_SSH_KEY }}
+          host: bekkalokk.pvv.ntnu.no
+          known-hosts: "bekkalokk.pvv.ntnu.no ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEI6VSaDrMG8+flg4/AeHlAFIen8RUzWh6URQKqFegSx"
 
   docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Install latest nightly toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-            toolchain: nightly
-            override: true
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
@@ -123,11 +112,11 @@ jobs:
         run: cargo doc --all-features --document-private-items --release
 
       - name: Transfer files
-        uses: https://git.pvv.ntnu.no/Projects/rsync-action@main
+        uses: https://git.pvv.ntnu.no/Projects/rsync-action@v1
         with:
           source: target/doc/
-          target: mpvipc-async/${{ gitea.ref_name }}/docs/
-          username: oysteikt
-          ssh-key: ${{ secrets.OYSTEIKT_GITEA_WEBDOCS_SSH_KEY }}
-          host: microbel.pvv.ntnu.no
-          known-hosts: "microbel.pvv.ntnu.no ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEq0yasKP0mH6PI6ypmuzPzMnbHELo9k+YB5yW534aKudKZS65YsHJKQ9vapOtmegrn5MQbCCgrshf+/XwZcjbM="
+          target: ${{ gitea.ref_name }}/docs/
+          username: gitea-web
+          ssh-key: ${{ secrets.WEB_SYNC_SSH_KEY }}
+          host: bekkalokk.pvv.ntnu.no
+          known-hosts: "bekkalokk.pvv.ntnu.no ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEI6VSaDrMG8+flg4/AeHlAFIen8RUzWh6URQKqFegSx"

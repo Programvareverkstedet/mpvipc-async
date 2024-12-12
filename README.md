@@ -1,11 +1,10 @@
-[![Coverage](https://pvv.ntnu.no/~oysteikt/gitea/mpvipc-async/main/coverage/badges/for_the_badge.svg)](https://pvv.ntnu.no/~oysteikt/gitea/mpvipc-async/main/coverage/src/)
-[![Docs](https://img.shields.io/badge/docs-blue?style=for-the-badge&logo=rust)](https://pvv.ntnu.no/~oysteikt/gitea/mpvipc-async/main/docs/mpvipc_async/)
+[![Coverage](https://pages.pvv.ntnu.no/Projects/mpvipc-async/main/coverage/badges/for_the_badge.svg)](https://pages.pvv.ntnu.no/Projects/mpvipc-async/main/coverage/src/)
+[![Docs](https://img.shields.io/badge/docs-blue?style=for-the-badge&logo=rust)](https://pages.pvv.ntnu.no/Projects/mpvipc-async/main/docs/mpvipc_async/)
 
 # mpvipc-async
 
 > **NOTE:** This is a fork of [gitlab.com/mpv-ipc/mpvipc](https://gitlab.com/mpv-ipc/mpvipc), which introduces a lot of changes to be able to use the library asynchronously with [tokio](https://github.com/tokio-rs/tokio).
 
----
 
 A small library which provides bindings to control existing mpv instances through sockets.
 
