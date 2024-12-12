@@ -60,7 +60,7 @@ jobs:
 
       - name: Run tests
         run: |
-          cargo nextest run --all-features --release --no-fail-fast
+          cargo nextest run --all-features --release --no-fail-fast --test-threads=1
         env:
           RUST_LOG: "trace"
           RUSTFLAGS: "-Cinstrument-coverage"
