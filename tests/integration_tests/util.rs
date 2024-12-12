@@ -25,7 +25,7 @@ pub async fn spawn_headless_mpv() -> Result<(Child, Mpv), MpvError> {
         .spawn()
         .expect("Failed to start mpv");
 
-    timeout(Duration::from_millis(500), async {
+    timeout(Duration::from_millis(1000), async {
         while !&socket_path.exists() {
             sleep(Duration::from_millis(10)).await;
         }
