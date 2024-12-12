@@ -82,7 +82,7 @@ pub enum MpvDataType {
 }
 
 /// A mpv playlist.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Playlist(pub Vec<PlaylistEntry>);
 
 /// A single entry in the mpv playlist.
