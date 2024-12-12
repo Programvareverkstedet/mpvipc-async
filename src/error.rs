@@ -8,8 +8,11 @@ use crate::{MpvDataType, Property};
 /// Any error that can occur when interacting with mpv.
 #[derive(Error, Debug)]
 pub enum MpvError {
-    #[error("MpvError: {0}")]
-    MpvError(String),
+    #[error("Mpv returned error in response to command: {message}\nCommand: {command:#?}")]
+    MpvError {
+        command: Vec<Value>,
+        message: String,
+    },
 
     #[error("Error communicating over mpv socket: {0}")]
     MpvSocketConnectionError(String),
@@ -53,7 +56,16 @@ pub enum MpvError {
 impl PartialEq for MpvError {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::MpvError(l0), Self::MpvError(r0)) => l0 == r0,
+            (
+                Self::MpvError {
+                    command: l_command,
+                    message: l_message,
+                },
+                Self::MpvError {
+                    command: r_command,
+                    message: r_message,
+                },
+            ) => l_command == r_command && l_message == r_message,
             (Self::MpvSocketConnectionError(l0), Self::MpvSocketConnectionError(r0)) => l0 == r0,
             (Self::InternalConnectionError(l0), Self::InternalConnectionError(r0)) => l0 == r0,
             (Self::JsonParseError(l0), Self::JsonParseError(r0)) => {

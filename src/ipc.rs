@@ -92,7 +92,7 @@ impl MpvIpc {
 
         log::trace!("Received response: {:?}", response);
 
-        parse_mpv_response_data(response?)
+        parse_mpv_response_data(response?, command)
     }
 
     pub(crate) async fn get_mpv_property(
@@ -197,7 +197,7 @@ impl MpvIpc {
 /// This function does the most basic JSON parsing and error handling
 /// for status codes and errors that all responses from mpv are
 /// expected to contain.
-fn parse_mpv_response_data(value: Value) -> Result<Option<Value>, MpvError> {
+fn parse_mpv_response_data(value: Value, command: &[Value]) -> Result<Option<Value>, MpvError> {
     log::trace!("Parsing mpv response data: {:?}", value);
     let result = value
         .as_object()
@@ -225,7 +225,10 @@ fn parse_mpv_response_data(value: Value) -> Result<Option<Value>, MpvError> {
         .and_then(|(error, data)| match error {
             "success" => Ok(data),
             "property unavailable" => Ok(None),
-            err => Err(MpvError::MpvError(err.to_string())),
+            err => Err(MpvError::MpvError {
+                command: command.to_owned(),
+                message: err.to_string(),
+            }),
         });
 
     match &result {

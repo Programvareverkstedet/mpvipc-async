@@ -151,8 +151,8 @@ async fn test_get_property_simultaneous_requests() {
             tokio::time::sleep(Duration::from_millis(2)).await;
             let maybe_volume = mpv_clone_3.get_property::<f64>("nonexistent").await;
             match maybe_volume {
-                Err(MpvError::MpvError(err)) => {
-                    assert_eq!(err, "property not found");
+                Err(MpvError::MpvError { message, .. }) => {
+                    assert_eq!(message, "property not found");
                 }
                 _ => panic!("Unexpected result: {:?}", maybe_volume),
             }

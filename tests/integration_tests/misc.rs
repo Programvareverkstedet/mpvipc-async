@@ -47,10 +47,13 @@ async fn test_get_unavailable_property() -> Result<(), MpvError> {
 async fn test_get_nonexistent_property() -> Result<(), MpvError> {
     let (mut proc, mpv) = spawn_headless_mpv().await.unwrap();
     let nonexistent = mpv.get_property::<f64>("nonexistent").await;
-    assert_eq!(
-        nonexistent,
-        Err(MpvError::MpvError("property not found".to_string()))
-    );
+
+    match nonexistent {
+        Err(MpvError::MpvError { message, .. }) => {
+            assert_eq!(message, "property not found");
+        }
+        _ => panic!("Unexpected result: {:?}", nonexistent),
+    }
 
     mpv.kill().await.unwrap();
     proc.kill().await.unwrap();

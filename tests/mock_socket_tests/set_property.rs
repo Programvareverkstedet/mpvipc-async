@@ -63,12 +63,12 @@ async fn test_set_property_wrong_type() -> Result<(), MpvError> {
     let mpv = Mpv::connect_socket(server).await?;
     let maybe_volume = mpv.set_property::<bool>("volume", true).await;
 
-    assert_eq!(
-        maybe_volume,
-        Err(MpvError::MpvError(
-            "unsupported format for accessing property".to_string()
-        ))
-    );
+    match maybe_volume {
+        Err(MpvError::MpvError { message, .. }) => {
+            assert_eq!(message, "unsupported format for accessing property");
+        }
+        _ => panic!("Unexpected result: {:?}", maybe_volume),
+    }
 
     join_handle.await.unwrap().unwrap();
 
@@ -84,10 +84,12 @@ async fn test_get_property_error() -> Result<(), MpvError> {
     let mpv = Mpv::connect_socket(server).await?;
     let maybe_volume = mpv.set_property("nonexistent", true).await;
 
-    assert_eq!(
-        maybe_volume,
-        Err(MpvError::MpvError("property not found".to_string()))
-    );
+    match maybe_volume {
+        Err(MpvError::MpvError { message, .. }) => {
+            assert_eq!(message, "property not found");
+        }
+        _ => panic!("Unexpected result: {:?}", maybe_volume),
+    }
 
     join_handle.await.unwrap().unwrap();
 
@@ -161,8 +163,8 @@ async fn test_set_property_simultaneous_requests() {
             tokio::time::sleep(Duration::from_millis(2)).await;
             let maybe_volume = mpv_clone_3.set_property("nonexistent", "a").await;
             match maybe_volume {
-                Err(MpvError::MpvError(err)) => {
-                    assert_eq!(err, "property not found");
+                Err(MpvError::MpvError { message, .. }) => {
+                    assert_eq!(message, "property not found");
                 }
                 _ => panic!("Unexpected result: {:?}", maybe_volume),
             }
