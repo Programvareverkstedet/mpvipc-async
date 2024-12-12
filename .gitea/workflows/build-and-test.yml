@@ -8,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # Needed to enable the cache: https://about.gitea.com/resources/tutorials/enable-gitea-actions-cache-to-accelerate-cicd
+      RUNNER_TOOL_CACHE: /toolcache
     steps:
       - uses: actions/checkout@v4
 
@@ -22,6 +25,8 @@ jobs:
 
   check:
     runs-on: ubuntu-latest
+    env:
+      RUNNER_TOOL_CACHE: /toolcache
     steps:
       - uses: actions/checkout@v4
 
@@ -41,6 +46,8 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    env:
+      RUNNER_TOOL_CACHE: /toolcache
     steps:
       - uses: actions/checkout@v4
 
@@ -99,6 +106,8 @@ jobs:
 
   docs:
     runs-on: ubuntu-latest
+    env:
+      RUNNER_TOOL_CACHE: /toolcache
     steps:
       - uses: actions/checkout@v4
 
