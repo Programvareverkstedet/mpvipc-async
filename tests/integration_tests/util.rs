@@ -6,6 +6,33 @@ use tokio::{
     time::{sleep, timeout},
 };
 
+pub fn assert_test_assets_exist() {
+    let test_data_dir = Path::new("test_assets");
+    if !test_data_dir.exists()
+        || !test_data_dir.is_dir()
+        // `.gitkeep` should always be present, so there should be at least 2 entries
+        || test_data_dir.read_dir().unwrap().count() <= 1
+    {
+        panic!(
+            "Test assets directory not found at {:?}, please run `./setup_test_assets.sh`",
+            test_data_dir
+        );
+    }
+}
+
+#[inline]
+pub fn get_test_assets_dir() -> &'static Path {
+    Path::new("test_assets")
+}
+
+pub fn get_test_asset(file_name: &str) -> String {
+    assert_test_assets_exist();
+
+    let test_assets_dir = get_test_assets_dir();
+    let file_path = test_assets_dir.join(file_name);
+    file_path.to_str().unwrap().to_string()
+}
+
 #[cfg(target_family = "unix")]
 pub async fn spawn_headless_mpv() -> Result<(Child, Mpv), MpvError> {
     let socket_path_str = format!("/tmp/mpv-ipc-{}", uuid::Uuid::new_v4());
