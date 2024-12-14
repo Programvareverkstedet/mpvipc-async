@@ -27,26 +27,64 @@ use crate::{
 /// the upstream list of commands.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MpvCommand {
+    /// Load the given file or URL and play it.
     LoadFile {
         file: String,
         option: PlaylistAddOptions,
     },
+
+    /// Load the given playlist file or URL.
     LoadList {
         file: String,
         option: PlaylistAddOptions,
     },
+
+    /// Clear the playlist, except for the currently playing file.
     PlaylistClear,
+
+    ///Move the playlist entry at `from`, so that it takes the place of the entry `to`.
+    /// (Paradoxically, the moved playlist entry will not have the index value `to` after moving
+    /// if `from` was lower than `to`, because `to` refers to the target entry, not the index
+    /// the entry will have after moving.)
     PlaylistMove { from: usize, to: usize },
+
+    /// Observe a property. This will start triggering [`Event::PropertyChange`] events
+    /// in the event stream whenever the specific property changes.
+    /// You can use [`Mpv::get_event_stream`] to get the stream.
     Observe { id: u64, property: String },
+
+    /// Skip to the next entry in the playlist.
     PlaylistNext,
+
+    /// Skip to the previous entry in the playlist.
     PlaylistPrev,
+
+    /// Remove an entry from the playlist by its position in the playlist.
     PlaylistRemove(usize),
+
+    /// Shuffle the playlist
     PlaylistShuffle,
+
+    /// Exit the player
     Quit,
+
+    /// Send a message to all clients, and pass it the following list of arguments.
+    /// What this message means, how many arguments it takes, and what the arguments
+    /// mean is fully up to the receiver and the sender.
     ScriptMessage(Vec<String>),
+
+    /// Same as [`MpvCommand::ScriptMessage`], but send the message to a specific target.
     ScriptMessageTo { target: String, args: Vec<String> },
+
+    /// Change the playback position.
     Seek { seconds: f64, option: SeekOptions },
+
+    /// Stop the current playback, and clear the playlist.
+    /// This esentially resets the entire player state without exiting mpv.
     Stop,
+
+    /// Unobserve all properties registered with the given id.
+    /// See [`MpvCommand::Observe`] for more context.
     Unobserve(u64),
 }
 
