@@ -36,30 +36,18 @@ pub enum MpvCommand {
         option: PlaylistAddOptions,
     },
     PlaylistClear,
-    PlaylistMove {
-        from: usize,
-        to: usize,
-    },
-    Observe {
-        id: usize,
-        property: String,
-    },
+    PlaylistMove { from: usize, to: usize },
+    Observe { id: u64, property: String },
     PlaylistNext,
     PlaylistPrev,
     PlaylistRemove(usize),
     PlaylistShuffle,
     Quit,
     ScriptMessage(Vec<String>),
-    ScriptMessageTo {
-        target: String,
-        args: Vec<String>,
-    },
-    Seek {
-        seconds: f64,
-        option: SeekOptions,
-    },
+    ScriptMessageTo { target: String, args: Vec<String> },
+    Seek { seconds: f64, option: SeekOptions },
     Stop,
-    Unobserve(usize),
+    Unobserve(u64),
 }
 
 /// Helper trait to keep track of the string literals that mpv expects.

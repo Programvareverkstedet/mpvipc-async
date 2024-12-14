@@ -109,7 +109,7 @@ pub enum Event {
     VideoReconfig,
     AudioReconfig,
     PropertyChange {
-        id: usize,
+        id: u64,
         name: String,
         data: Option<MpvDataType>,
     },
@@ -296,7 +296,7 @@ fn parse_client_message(event: &Map<String, Value>) -> Result<Event, MpvError> {
 }
 
 fn parse_property_change(event: &Map<String, Value>) -> Result<Event, MpvError> {
-    let id = get_key_as!(as_u64, "id", event) as usize;
+    let id = get_key_as!(as_u64, "id", event);
     let property_name = get_key_as!(as_str, "name", event);
     let data = event.get("data").map(json_to_value).transpose()?;
 

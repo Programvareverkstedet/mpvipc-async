@@ -88,11 +88,11 @@ pub trait MpvExt {
 
     /// Notify mpv to send events whenever a property changes.
     /// See [`Mpv::get_event_stream`] and [`Property`](crate::Property) for more information.
-    async fn observe_property(&self, id: usize, property: &str) -> Result<(), MpvError>;
+    async fn observe_property(&self, id: u64, property: &str) -> Result<(), MpvError>;
 
     /// Stop observing a property.
     /// See [`Mpv::get_event_stream`] and [`Property`](crate::Property) for more information.
-    async fn unobserve_property(&self, id: usize) -> Result<(), MpvError>;
+    async fn unobserve_property(&self, id: u64) -> Result<(), MpvError>;
 
     /// Skip to the next entry in the playlist.
     async fn next(&self) -> Result<(), MpvError>;
@@ -259,7 +259,7 @@ impl MpvExt for Mpv {
         self.run_command(MpvCommand::PlaylistPrev).await
     }
 
-    async fn observe_property(&self, id: usize, property: &str) -> Result<(), MpvError> {
+    async fn observe_property(&self, id: u64, property: &str) -> Result<(), MpvError> {
         self.run_command(MpvCommand::Observe {
             id,
             property: property.to_string(),
@@ -267,7 +267,7 @@ impl MpvExt for Mpv {
         .await
     }
 
-    async fn unobserve_property(&self, id: usize) -> Result<(), MpvError> {
+    async fn unobserve_property(&self, id: u64) -> Result<(), MpvError> {
         self.run_command(MpvCommand::Unobserve(id)).await
     }
 

@@ -8,7 +8,7 @@ use test_log::test;
 
 use super::*;
 
-const MPV_CHANNEL_ID: usize = 1337;
+const MPV_CHANNEL_ID: u64 = 1337;
 
 #[derive(Error, Debug)]
 enum PropertyCheckingThreadError {
