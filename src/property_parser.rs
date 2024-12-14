@@ -1,5 +1,5 @@
 //! JSON parsing logic for properties returned by
-//! [[`Event::PropertyChange`], and used internally in `MpvExt`
+//! [`Event::PropertyChange`], and used internally in `MpvExt`
 //! to parse the response from `Mpv::get_property()`.
 //!
 //! This module is used to parse the json data from the `data` field of
