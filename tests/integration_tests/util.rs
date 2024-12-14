@@ -34,7 +34,7 @@ pub fn get_test_asset(file_name: &str) -> String {
 }
 
 #[cfg(target_family = "unix")]
-pub async fn spawn_headless_mpv() -> Result<(Child, Mpv), MpvError> {
+pub async fn spawn_mpv(headless: bool) -> Result<(Child, Mpv), MpvError> {
     let socket_path_str = format!("/tmp/mpv-ipc-{}", uuid::Uuid::new_v4());
     let socket_path = Path::new(&socket_path_str);
 
@@ -42,8 +42,11 @@ pub async fn spawn_headless_mpv() -> Result<(Child, Mpv), MpvError> {
     let process_handle = Command::new("mpv")
         .arg("--no-config")
         .arg("--idle")
-        .arg("--no-video")
-        .arg("--no-audio")
+        .args(if headless {
+            vec!["--no-video", "--no-audio"]
+        } else {
+            vec![]
+        })
         .arg(format!(
             "--input-ipc-server={}",
             &socket_path.to_str().unwrap()

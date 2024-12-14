@@ -115,7 +115,7 @@ async fn graceful_shutdown(
 #[test(tokio::test)]
 #[cfg(target_family = "unix")]
 async fn test_highlevel_event_pause() -> Result<(), MpvError> {
-    let (proc, mpv) = spawn_headless_mpv().await?;
+    let (proc, mpv) = spawn_mpv(true).await?;
 
     mpv.observe_property(MPV_CHANNEL_ID, "pause").await?;
 
@@ -144,7 +144,7 @@ async fn test_highlevel_event_pause() -> Result<(), MpvError> {
 #[test(tokio::test)]
 #[cfg(target_family = "unix")]
 async fn test_highlevel_event_volume() -> Result<(), MpvError> {
-    let (proc, mpv) = spawn_headless_mpv().await?;
+    let (proc, mpv) = spawn_mpv(true).await?;
 
     mpv.observe_property(1337, "volume").await?;
     let events = mpv.get_event_stream().await;
@@ -174,7 +174,7 @@ async fn test_highlevel_event_volume() -> Result<(), MpvError> {
 #[test(tokio::test)]
 #[cfg(target_family = "unix")]
 async fn test_highlevel_event_mute() -> Result<(), MpvError> {
-    let (proc, mpv) = spawn_headless_mpv().await?;
+    let (proc, mpv) = spawn_mpv(true).await?;
 
     mpv.observe_property(1337, "mute").await?;
     let events = mpv.get_event_stream().await;
@@ -202,7 +202,7 @@ async fn test_highlevel_event_mute() -> Result<(), MpvError> {
 #[test(tokio::test)]
 #[cfg(target_family = "unix")]
 async fn test_highlevel_event_duration() -> Result<(), MpvError> {
-    let (proc, mpv) = spawn_headless_mpv().await?;
+    let (proc, mpv) = spawn_mpv(true).await?;
 
     mpv.observe_property(1337, "duration").await?;
 
