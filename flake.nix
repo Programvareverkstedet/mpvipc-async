@@ -31,6 +31,7 @@
         pkgs.mpv
         pkgs.grcov
         pkgs.cargo-nextest
+        pkgs.ffmpeg
       ];
       RUST_SRC_PATH = "${toolchain.rust-src}/lib/rustlib/src/rust/library";
     });
