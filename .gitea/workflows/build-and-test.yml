@@ -8,25 +8,17 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      # Needed to enable the cache: https://about.gitea.com/resources/tutorials/enable-gitea-actions-cache-to-accelerate-cicd
-      RUNNER_TOOL_CACHE: /toolcache
     steps:
       - uses: actions/checkout@v4
 
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
-
       - name: Build
         run: cargo build --all-features --verbose --release
 
   check:
     runs-on: ubuntu-latest
-    env:
-      RUNNER_TOOL_CACHE: /toolcache
     steps:
       - uses: actions/checkout@v4
 
@@ -34,9 +26,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
             components: rustfmt, clippy
-
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
 
       - name: Check code format
         run: cargo fmt -- --check
@@ -46,8 +35,6 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    env:
-      RUNNER_TOOL_CACHE: /toolcache
     steps:
       - uses: actions/checkout@v4
 
@@ -106,16 +93,11 @@ jobs:
 
   docs:
     runs-on: ubuntu-latest
-    env:
-      RUNNER_TOOL_CACHE: /toolcache
     steps:
       - uses: actions/checkout@v4
 
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
 
       - name: Build docs
         run: cargo doc --all-features --document-private-items --release
