@@ -323,9 +323,9 @@ impl MpvExt for Mpv {
             Switch::Off => "yes",
             Switch::Toggle => {
                 if self.is_playing().await? {
-                    "no"
-                } else {
                     "yes"
+                } else {
+                    "no"
                 }
             }
         };
