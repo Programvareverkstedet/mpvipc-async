@@ -95,6 +95,7 @@ pub(crate) trait IntoRawCommandPart {
 
 /// Generic data type representing all possible data types that mpv can return.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum MpvDataType {
     Array(Vec<MpvDataType>),
     Bool(bool),
