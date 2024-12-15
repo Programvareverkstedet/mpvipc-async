@@ -43,7 +43,7 @@ where
                     match event {
                         Some(Ok(event)) => {
                             match event {
-                                Event::PropertyChange { id: MPV_CHANNEL_ID, name, data } => {
+                                Event::PropertyChange { id: Some(MPV_CHANNEL_ID), name, data } => {
                                     let property = parse_property(&name, data).unwrap();
                                     if !on_property(property.clone()) {
                                         return Err(PropertyCheckingThreadError::UnexpectedPropertyError(property))

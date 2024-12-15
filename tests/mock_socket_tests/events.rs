@@ -52,7 +52,7 @@ async fn test_observe_event_successful() {
         assert_eq!(
             event,
             Event::PropertyChange {
-                id: 1,
+                id: Some(1),
                 name: "volume".to_string(),
                 data: Some(MpvDataType::Double(64.0))
             }
