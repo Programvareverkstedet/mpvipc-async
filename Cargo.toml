@@ -7,8 +7,8 @@ authors = [
 ]
 description = "A small library which provides bindings to control existing mpv instances through sockets."
 license = "GPL-3.0"
-repository = "https://git.pvv.ntnu.no/Projects/mpvipc-async"
-documentation = "https://pages.pvv.ntnu.no/Projects/mpvipc-async/main/docs/mpvipc_async/"
+repository = "https://git.pvv.ntnu.no/Grzegorz/mpvipc-async"
+documentation = "https://pages.pvv.ntnu.no/Grzegorz/mpvipc-async/main/docs/mpvipc_async/"
 edition = "2021"
 rust-version = "1.75"
 
