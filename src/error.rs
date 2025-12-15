@@ -23,7 +23,9 @@ pub enum MpvError {
     #[error("JsonParseError: {0}")]
     JsonParseError(#[from] serde_json::Error),
 
-    #[error("Mpv sent a value with an unexpected type:\nExpected {expected_type}, received {received:#?}")]
+    #[error(
+        "Mpv sent a value with an unexpected type:\nExpected {expected_type}, received {received:#?}"
+    )]
     ValueContainsUnexpectedType {
         expected_type: String,
         received: Value,

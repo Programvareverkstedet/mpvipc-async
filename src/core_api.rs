@@ -10,9 +10,9 @@ use tokio::{
 };
 
 use crate::{
+    Event, MpvError,
     ipc::{MpvIpc, MpvIpcCommand, MpvIpcEvent, MpvIpcResponse},
     message_parser::TypeHandler,
-    Event, MpvError,
 };
 
 /// All possible commands that can be sent to mpv.
@@ -162,7 +162,7 @@ pub trait GetPropertyTypeHandler: Sized {
     // TODO: fix this
     #[allow(async_fn_in_trait)]
     async fn get_property_generic(instance: &Mpv, property: &str)
-        -> Result<Option<Self>, MpvError>;
+    -> Result<Option<Self>, MpvError>;
 }
 
 impl<T> GetPropertyTypeHandler for T
@@ -185,7 +185,7 @@ pub trait SetPropertyTypeHandler<T> {
     // TODO: fix this
     #[allow(async_fn_in_trait)]
     async fn set_property_generic(instance: &Mpv, property: &str, value: T)
-        -> Result<(), MpvError>;
+    -> Result<(), MpvError>;
 }
 
 impl<T> SetPropertyTypeHandler<T> for T

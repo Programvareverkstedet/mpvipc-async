@@ -5,7 +5,7 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::{ipc::MpvIpcEvent, message_parser::json_to_value, MpvDataType, MpvError};
+use crate::{MpvDataType, MpvError, ipc::MpvIpcEvent, message_parser::json_to_value};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]

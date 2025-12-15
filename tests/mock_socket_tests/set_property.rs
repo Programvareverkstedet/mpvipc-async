@@ -1,8 +1,8 @@
 use std::{panic, time::Duration};
 
-use futures::{stream::FuturesUnordered, SinkExt, StreamExt};
+use futures::{SinkExt, StreamExt, stream::FuturesUnordered};
 use mpvipc_async::{Mpv, MpvError};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use test_log::test;
 use tokio::{net::UnixStream, task::JoinHandle};
 use tokio_util::codec::{Framed, LinesCodec, LinesCodecError};

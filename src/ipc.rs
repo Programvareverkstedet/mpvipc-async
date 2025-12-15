@@ -1,7 +1,7 @@
 //! IPC handling thread/task. Handles communication between [`Mpv`](crate::Mpv) instances and mpv's unix socket
 
 use futures::{SinkExt, StreamExt};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::{
     net::UnixStream,
     sync::{broadcast, mpsc, oneshot},

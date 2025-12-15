@@ -1,8 +1,8 @@
 use std::{panic, time::Duration};
 
-use futures::{stream::FuturesUnordered, SinkExt, StreamExt};
+use futures::{SinkExt, StreamExt, stream::FuturesUnordered};
 use mpvipc_async::{Mpv, MpvError, MpvExt, Playlist, PlaylistEntry};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use test_log::test;
 use tokio::{net::UnixStream, task::JoinHandle};
 use tokio_util::codec::{Framed, LinesCodec, LinesCodecError};
@@ -196,18 +196,20 @@ async fn test_get_playlist() -> Result<(), MpvError> {
         },
     ]);
 
-    let (server, join_handle) = test_socket(vec![json!({
-      "data": expected.0.iter().map(|entry| {
+    let (server, join_handle) = test_socket(vec![
         json!({
-          "filename": entry.filename,
-          "title": entry.title,
-          "current": entry.current
+          "data": expected.0.iter().map(|entry| {
+            json!({
+              "filename": entry.filename,
+              "title": entry.title,
+              "current": entry.current
+            })
+          }).collect::<Vec<Value>>(),
+          "request_id": 0,
+          "error": "success"
         })
-      }).collect::<Vec<Value>>(),
-      "request_id": 0,
-      "error": "success"
-    })
-    .to_string()]);
+        .to_string(),
+    ]);
 
     let mpv = Mpv::connect_socket(server).await?;
     let playlist = mpv.get_playlist().await?;

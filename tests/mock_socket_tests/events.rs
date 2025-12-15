@@ -1,4 +1,4 @@
-use futures::{stream::StreamExt, SinkExt};
+use futures::{SinkExt, stream::StreamExt};
 use mpvipc_async::{Event, Mpv, MpvDataType, MpvExt};
 use serde_json::json;
 use test_log::test;

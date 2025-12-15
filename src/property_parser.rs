@@ -68,7 +68,7 @@ pub fn parse_property(name: &str, data: Option<MpvDataType>) -> Result<Property,
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "String".to_owned(),
                         received: data,
-                    })
+                    });
                 }
                 None => {
                     return Err(MpvError::MissingMpvData);
@@ -83,7 +83,7 @@ pub fn parse_property(name: &str, data: Option<MpvDataType>) -> Result<Property,
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "bool".to_owned(),
                         received: data,
-                    })
+                    });
                 }
                 None => {
                     return Err(MpvError::MissingMpvData);
@@ -99,7 +99,7 @@ pub fn parse_property(name: &str, data: Option<MpvDataType>) -> Result<Property,
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "f64".to_owned(),
                         received: data,
-                    })
+                    });
                 }
             };
             Ok(Property::PlaybackTime(playback_time))
@@ -112,7 +112,7 @@ pub fn parse_property(name: &str, data: Option<MpvDataType>) -> Result<Property,
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "f64".to_owned(),
                         received: data,
-                    })
+                    });
                 }
             };
             Ok(Property::Duration(duration))
@@ -125,7 +125,7 @@ pub fn parse_property(name: &str, data: Option<MpvDataType>) -> Result<Property,
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "HashMap".to_owned(),
                         received: data,
-                    })
+                    });
                 }
             };
             Ok(Property::Metadata(metadata))
@@ -138,7 +138,7 @@ pub fn parse_property(name: &str, data: Option<MpvDataType>) -> Result<Property,
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "Array".to_owned(),
                         received: data,
-                    })
+                    });
                 }
             };
             Ok(Property::Playlist(playlist))
@@ -153,7 +153,7 @@ pub fn parse_property(name: &str, data: Option<MpvDataType>) -> Result<Property,
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "usize or -1".to_owned(),
                         received: data,
-                    })
+                    });
                 }
             };
             Ok(Property::PlaylistPos(playlist_pos))
@@ -210,7 +210,7 @@ pub fn parse_property(name: &str, data: Option<MpvDataType>) -> Result<Property,
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "f64".to_owned(),
                         received: data,
-                    })
+                    });
                 }
                 None => None,
             };
@@ -224,7 +224,7 @@ pub fn parse_property(name: &str, data: Option<MpvDataType>) -> Result<Property,
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "f64".to_owned(),
                         received: data,
-                    })
+                    });
                 }
                 None => None,
             };
@@ -237,7 +237,7 @@ pub fn parse_property(name: &str, data: Option<MpvDataType>) -> Result<Property,
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "f64".to_owned(),
                         received: data,
-                    })
+                    });
                 }
                 None => {
                     return Err(MpvError::MissingMpvData);
@@ -252,7 +252,7 @@ pub fn parse_property(name: &str, data: Option<MpvDataType>) -> Result<Property,
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "f64".to_owned(),
                         received: data,
-                    })
+                    });
                 }
                 None => {
                     return Err(MpvError::MissingMpvData);
@@ -267,7 +267,7 @@ pub fn parse_property(name: &str, data: Option<MpvDataType>) -> Result<Property,
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "bool".to_owned(),
                         received: data,
-                    })
+                    });
                 }
                 None => {
                     return Err(MpvError::MissingMpvData);
@@ -282,7 +282,7 @@ pub fn parse_property(name: &str, data: Option<MpvDataType>) -> Result<Property,
                     return Err(MpvError::DataContainsUnexpectedType {
                         expected_type: "bool".to_owned(),
                         received: data,
-                    })
+                    });
                 }
                 None => true,
             };
@@ -305,7 +305,7 @@ fn mpv_data_to_playlist_entry(
             return Err(MpvError::DataContainsUnexpectedType {
                 expected_type: "String".to_owned(),
                 received: data.clone(),
-            })
+            });
         }
         None => return Err(MpvError::MissingMpvData),
     };
@@ -315,7 +315,7 @@ fn mpv_data_to_playlist_entry(
             return Err(MpvError::DataContainsUnexpectedType {
                 expected_type: "String".to_owned(),
                 received: data.clone(),
-            })
+            });
         }
         None => None,
     };
@@ -325,7 +325,7 @@ fn mpv_data_to_playlist_entry(
             return Err(MpvError::DataContainsUnexpectedType {
                 expected_type: "bool".to_owned(),
                 received: data.clone(),
-            })
+            });
         }
         None => false,
     };

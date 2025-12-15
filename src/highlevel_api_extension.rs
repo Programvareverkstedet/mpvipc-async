@@ -1,8 +1,8 @@
 //! High-level API extension for [`Mpv`].
 
 use crate::{
-    parse_property, IntoRawCommandPart, LoopProperty, Mpv, MpvCommand, MpvDataType, MpvError,
-    Playlist, PlaylistAddOptions, Property, SeekOptions,
+    IntoRawCommandPart, LoopProperty, Mpv, MpvCommand, MpvDataType, MpvError, Playlist,
+    PlaylistAddOptions, Property, SeekOptions, parse_property,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

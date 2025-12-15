@@ -1,5 +1,5 @@
 use futures::StreamExt;
-use mpvipc_async::{parse_property, Event, Mpv, MpvDataType, MpvError, MpvExt, Property};
+use mpvipc_async::{Event, Mpv, MpvDataType, MpvError, MpvExt, Property, parse_property};
 
 fn seconds_to_hms(total: f64) -> String {
     let total = total as u64;

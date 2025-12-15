@@ -1,8 +1,8 @@
-use futures::{stream::StreamExt, Stream};
-use mpvipc_async::{parse_property, Event, Mpv, MpvError, MpvExt, Property};
+use futures::{Stream, stream::StreamExt};
+use mpvipc_async::{Event, Mpv, MpvError, MpvExt, Property, parse_property};
 use thiserror::Error;
 use tokio::time::sleep;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 
 use test_log::test;
 

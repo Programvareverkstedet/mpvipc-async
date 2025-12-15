@@ -164,7 +164,7 @@ fn json_map_to_playlist_entry(
             return Err(MpvError::ValueContainsUnexpectedType {
                 expected_type: "String".to_owned(),
                 received: data.clone(),
-            })
+            });
         }
         None => return Err(MpvError::MissingMpvData),
     };
@@ -174,7 +174,7 @@ fn json_map_to_playlist_entry(
             return Err(MpvError::ValueContainsUnexpectedType {
                 expected_type: "String".to_owned(),
                 received: data.clone(),
-            })
+            });
         }
         None => None,
     };
@@ -184,7 +184,7 @@ fn json_map_to_playlist_entry(
             return Err(MpvError::ValueContainsUnexpectedType {
                 expected_type: "bool".to_owned(),
                 received: data.clone(),
-            })
+            });
         }
         None => false,
     };
