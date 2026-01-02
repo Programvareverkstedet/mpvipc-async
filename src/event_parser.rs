@@ -194,16 +194,16 @@ macro_rules! get_key_as {
 
 macro_rules! get_optional_key_as {
     ($as_type:ident, $key:expr, $event:ident) => {{
-        if let Some(tmp) = $event.get($key) {
-            Some(
+        match $event.get($key) {
+            Some(Value::Null) => None,
+            Some(tmp) => Some(
                 tmp.$as_type()
                     .ok_or(MpvError::ValueContainsUnexpectedType {
                         expected_type: stringify!($as_type).strip_prefix("as_").unwrap().to_owned(),
                         received: tmp.clone(),
                     })?,
-            )
-        } else {
-            None
+            ),
+            None => None,
         }
     }};
 }
@@ -335,4 +335,196 @@ fn parse_property_change(event: &Map<String, Value>) -> Result<Event, MpvError> 
         name: property_name.to_string(),
         data,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ipc::MpvIpcEvent;
+    use serde_json::json;
+
+    #[test]
+    fn test_parse_simple_events() {
+        let simple_events = vec![
+            (json!({"event": "file-loaded"}), Event::FileLoaded),
+            (json!({"event": "seek"}), Event::Seek),
+            (json!({"event": "playback-restart"}), Event::PlaybackRestart),
+            (json!({"event": "shutdown"}), Event::Shutdown),
+            (json!({"event": "video-reconfig"}), Event::VideoReconfig),
+            (json!({"event": "audio-reconfig"}), Event::AudioReconfig),
+            (json!({"event": "tick"}), Event::Tick),
+            (json!({"event": "idle"}), Event::Idle),
+            (json!({"event": "tracks-changed"}), Event::TracksChanged),
+            (json!({"event": "track-switched"}), Event::TrackSwitched),
+            (json!({"event": "pause"}), Event::Pause),
+            (json!({"event": "unpause"}), Event::Unpause),
+            (json!({"event": "metadata-update"}), Event::MetadataUpdate),
+            (json!({"event": "chapter-change"}), Event::ChapterChange),
+        ];
+
+        for (raw_event_json, expected_event) in simple_events {
+            let raw_event = MpvIpcEvent(raw_event_json);
+            let event = parse_event(raw_event).unwrap();
+            assert_eq!(event, expected_event);
+        }
+    }
+
+    #[test]
+    fn test_parse_start_file_event() {
+        let raw_event = MpvIpcEvent(json!({
+            "event": "start-file",
+            "playlist_entry_id": 1
+        }));
+
+        let event = parse_event(raw_event).unwrap();
+
+        assert_eq!(
+            event,
+            Event::StartFile {
+                playlist_entry_id: 1
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_end_file_event() {
+        let raw_event = MpvIpcEvent(json!({
+            "event": "end-file",
+            "reason": "eof",
+            "playlist_entry_id": 2,
+            "file_error": null,
+            "playlist_insert_id": 3,
+            "playlist_insert_num_entries": 5
+        }));
+        let event = parse_event(raw_event).unwrap();
+        assert_eq!(
+            event,
+            Event::EndFile {
+                reason: EventEndFileReason::Eof,
+                playlist_entry_id: 2,
+                file_error: None,
+                playlist_insert_id: Some(3),
+                playlist_insert_num_entries: Some(5)
+            }
+        );
+
+        let raw_event_with_error = MpvIpcEvent(json!({
+            "event": "end-file",
+            "reason": "error",
+            "playlist_entry_id": 4,
+            "file_error": "File not found",
+        }));
+        let event_with_error = parse_event(raw_event_with_error).unwrap();
+        assert_eq!(
+            event_with_error,
+            Event::EndFile {
+                reason: EventEndFileReason::Error,
+                playlist_entry_id: 4,
+                file_error: Some("File not found".to_string()),
+                playlist_insert_id: None,
+                playlist_insert_num_entries: None,
+            }
+        );
+
+        let raw_event_unimplemented = MpvIpcEvent(json!({
+            "event": "end-file",
+            "reason": "unknown-reason",
+            "playlist_entry_id": 5
+        }));
+        let event_unimplemented = parse_event(raw_event_unimplemented).unwrap();
+        assert_eq!(
+            event_unimplemented,
+            Event::EndFile {
+                reason: EventEndFileReason::Unimplemented("unknown-reason".to_string()),
+                playlist_entry_id: 5,
+                file_error: None,
+                playlist_insert_id: None,
+                playlist_insert_num_entries: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_log_message_event() {
+        let raw_event = MpvIpcEvent(json!({
+            "event": "log-message",
+            "prefix": "mpv",
+            "level": "info",
+            "text": "This is a log message"
+        }));
+        let event = parse_event(raw_event).unwrap();
+        assert_eq!(
+            event,
+            Event::LogMessage {
+                prefix: "mpv".to_string(),
+                level: EventLogMessageLevel::Info,
+                text: "This is a log message".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_hook_event() {
+        let raw_event = MpvIpcEvent(json!({
+            "event": "hook",
+            "hook_id": 42
+        }));
+        let event = parse_event(raw_event).unwrap();
+        assert_eq!(event, Event::Hook { hook_id: 42 });
+    }
+
+    #[test]
+    fn test_parse_client_message_event() {
+        let raw_event = MpvIpcEvent(json!({
+            "event": "client-message",
+            "args": ["arg1", "arg2", "arg3"]
+        }));
+        let event = parse_event(raw_event).unwrap();
+        assert_eq!(
+            event,
+            Event::ClientMessage {
+                args: vec!["arg1".to_string(), "arg2".to_string(), "arg3".to_string()]
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_property_change_event() {
+        let raw_event = MpvIpcEvent(json!({
+            "event": "property-change",
+            "id": 1,
+            "name": "pause",
+            "data": true
+        }));
+        let event = parse_event(raw_event).unwrap();
+        assert_eq!(
+            event,
+            Event::PropertyChange {
+                id: Some(1),
+                name: "pause".to_string(),
+                data: Some(MpvDataType::Bool(true)),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_unimplemented_event() {
+        let raw_event = MpvIpcEvent(json!({
+            "event": "some-unimplemented-event",
+            "some_key": "some_value"
+        }));
+        let event = parse_event(raw_event).unwrap();
+        assert_eq!(
+            event,
+            Event::Unimplemented(
+                json!({
+                    "event": "some-unimplemented-event",
+                    "some_key": "some_value"
+                })
+                .as_object()
+                .unwrap()
+                .to_owned()
+            )
+        );
+    }
 }
