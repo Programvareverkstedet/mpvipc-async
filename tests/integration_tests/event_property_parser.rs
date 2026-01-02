@@ -1,4 +1,4 @@
-use futures::{Stream, stream::StreamExt};
+use futures::stream::StreamExt;
 use mpvipc_async::{Event, Mpv, MpvError, MpvExt, Property, parse_property};
 use thiserror::Error;
 use tokio::time::sleep;
@@ -25,7 +25,7 @@ enum PropertyCheckingThreadError {
 ///
 /// The returned cancellation token can be used to stop the task.
 fn create_interruptable_event_property_checking_thread<T>(
-    mut events: impl Stream<Item = Result<Event, MpvError>> + Unpin + Send + 'static,
+    mpv: Mpv,
     on_property: T,
 ) -> (
     tokio::task::JoinHandle<Result<(), PropertyCheckingThreadError>>,
@@ -37,6 +37,8 @@ where
     let cancellation_token = tokio_util::sync::CancellationToken::new();
     let cancellation_token_clone = cancellation_token.clone();
     let handle = tokio::spawn(async move {
+        let mut events = mpv.get_event_stream().await;
+
         loop {
             tokio::select! {
                 event = events.next() => {
@@ -119,15 +121,16 @@ async fn test_highlevel_event_pause() -> Result<(), MpvError> {
 
     mpv.observe_property(MPV_CHANNEL_ID, "pause").await?;
 
-    let events = mpv.get_event_stream().await;
-    let (handle, cancellation_token) =
-        create_interruptable_event_property_checking_thread(events, |property| match property {
+    let (handle, cancellation_token) = create_interruptable_event_property_checking_thread(
+        mpv.clone(),
+        |property| match property {
             Property::Pause(_) => {
                 log::debug!("{:?}", property);
                 true
             }
             _ => false,
-        });
+        },
+    );
 
     sleep(Duration::from_millis(5)).await;
     mpv.set_property("pause", false).await?;
@@ -147,15 +150,16 @@ async fn test_highlevel_event_volume() -> Result<(), MpvError> {
     let (proc, mpv) = spawn_headless_mpv().await?;
 
     mpv.observe_property(1337, "volume").await?;
-    let events = mpv.get_event_stream().await;
-    let (handle, cancellation_token) =
-        create_interruptable_event_property_checking_thread(events, |property| match property {
+    let (handle, cancellation_token) = create_interruptable_event_property_checking_thread(
+        mpv.clone(),
+        |property| match property {
             Property::Volume(_) => {
                 log::trace!("{:?}", property);
                 true
             }
             _ => false,
-        });
+        },
+    );
 
     sleep(Duration::from_millis(5)).await;
     mpv.set_property("volume", 100.0).await?;
@@ -177,15 +181,16 @@ async fn test_highlevel_event_mute() -> Result<(), MpvError> {
     let (proc, mpv) = spawn_headless_mpv().await?;
 
     mpv.observe_property(1337, "mute").await?;
-    let events = mpv.get_event_stream().await;
-    let (handle, cancellation_token) =
-        create_interruptable_event_property_checking_thread(events, |property| match property {
+    let (handle, cancellation_token) = create_interruptable_event_property_checking_thread(
+        mpv.clone(),
+        |property| match property {
             Property::Mute(_) => {
                 log::trace!("{:?}", property);
                 true
             }
             _ => false,
-        });
+        },
+    );
 
     sleep(Duration::from_millis(5)).await;
     mpv.set_property("mute", true).await?;
@@ -206,15 +211,16 @@ async fn test_highlevel_event_duration() -> Result<(), MpvError> {
 
     mpv.observe_property(1337, "duration").await?;
 
-    let events = mpv.get_event_stream().await;
-    let (handle, cancellation_token) =
-        create_interruptable_event_property_checking_thread(events, |property| match property {
+    let (handle, cancellation_token) = create_interruptable_event_property_checking_thread(
+        mpv.clone(),
+        |property| match property {
             Property::Duration(_) => {
                 log::trace!("{:?}", property);
                 true
             }
             _ => false,
-        });
+        },
+    );
 
     sleep(Duration::from_millis(5)).await;
     mpv.set_property("pause", true).await?;
