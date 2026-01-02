@@ -1,4 +1,9 @@
-use mpvipc_async::{MpvError, MpvExt};
+use std::time::Duration;
+
+use test_log::test;
+use tokio::time::sleep;
+
+use mpvipc_async::{MpvError, MpvExt, Property};
 
 use super::*;
 
@@ -57,6 +62,48 @@ async fn test_get_nonexistent_property() -> Result<(), MpvError> {
 
     mpv.kill().await.unwrap();
     proc.kill().await.unwrap();
+
+    Ok(())
+}
+
+#[test(tokio::test)]
+#[cfg(target_family = "unix")]
+async fn test_unobserve_property() -> Result<(), MpvError> {
+    let (proc, mpv) = spawn_headless_mpv().await?;
+
+    mpv.observe_property(MPV_CHANNEL_ID, "pause").await?;
+
+    let (handle, cancellation_token) = create_interruptable_event_property_checking_thread(
+        mpv.clone(),
+        |property| match property {
+            Property::Pause(_) => {
+                log::debug!("{:?}", property);
+                true
+            }
+            _ => false,
+        },
+    );
+
+    sleep(Duration::from_millis(5)).await;
+    mpv.set_property("pause", true).await?;
+    sleep(Duration::from_millis(5)).await;
+
+    cancellation_token.cancel();
+    check_property_thread_result(handle).await?;
+
+    mpv.unobserve_property(MPV_CHANNEL_ID).await?;
+
+    let (handle, cancellation_token) =
+        create_interruptable_event_property_checking_thread(mpv.clone(), |_property| {
+            // We should not receive any properties after unobserving
+            false
+        });
+
+    sleep(Duration::from_millis(5)).await;
+    mpv.set_property("pause", false).await?;
+    sleep(Duration::from_millis(5)).await;
+
+    graceful_shutdown(cancellation_token, handle, mpv, proc).await?;
 
     Ok(())
 }
