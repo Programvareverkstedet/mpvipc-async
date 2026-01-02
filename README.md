@@ -3,8 +3,9 @@
 
 # mpvipc-async
 
-> **NOTE:** This is a fork of [gitlab.com/mpv-ipc/mpvipc](https://gitlab.com/mpv-ipc/mpvipc), which introduces a lot of changes to be able to use the library asynchronously with [tokio](https://github.com/tokio-rs/tokio).
-
+> [!NOTE]
+> This is a fork of [gitlab.com/mpv-ipc/mpvipc](https://gitlab.com/mpv-ipc/mpvipc).
+> The fork adds support for use in asynchronous contexts.
 
 A small library which provides bindings to control existing mpv instances through sockets.
 
