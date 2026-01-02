@@ -45,6 +45,7 @@ pub async fn spawn_headless_mpv() -> Result<(Child, Mpv), MpvError> {
     Ok((process_handle, mpv))
 }
 
+/// The channel ID used for property observation in tests
 pub const MPV_CHANNEL_ID: u64 = 1337;
 
 #[derive(Error, Debug)]

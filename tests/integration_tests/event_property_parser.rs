@@ -42,7 +42,7 @@ async fn test_highlevel_event_pause() -> Result<(), MpvError> {
 async fn test_highlevel_event_volume() -> Result<(), MpvError> {
     let (proc, mpv) = spawn_headless_mpv().await?;
 
-    mpv.observe_property(1337, "volume").await?;
+    mpv.observe_property(MPV_CHANNEL_ID, "volume").await?;
     let (handle, cancellation_token) = create_interruptable_event_property_checking_thread(
         mpv.clone(),
         |property| match property {
@@ -73,7 +73,7 @@ async fn test_highlevel_event_volume() -> Result<(), MpvError> {
 async fn test_highlevel_event_mute() -> Result<(), MpvError> {
     let (proc, mpv) = spawn_headless_mpv().await?;
 
-    mpv.observe_property(1337, "mute").await?;
+    mpv.observe_property(MPV_CHANNEL_ID, "mute").await?;
     let (handle, cancellation_token) = create_interruptable_event_property_checking_thread(
         mpv.clone(),
         |property| match property {
@@ -102,7 +102,7 @@ async fn test_highlevel_event_mute() -> Result<(), MpvError> {
 async fn test_highlevel_event_duration() -> Result<(), MpvError> {
     let (proc, mpv) = spawn_headless_mpv().await?;
 
-    mpv.observe_property(1337, "duration").await?;
+    mpv.observe_property(MPV_CHANNEL_ID, "duration").await?;
 
     let (handle, cancellation_token) = create_interruptable_event_property_checking_thread(
         mpv.clone(),
