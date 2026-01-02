@@ -7,15 +7,37 @@ use serde_json::{Map, Value};
 
 use crate::{MpvDataType, MpvError, ipc::MpvIpcEvent, message_parser::json_to_value};
 
+/// Reason behind the `MPV_EVENT_END_FILE` event.
+///
+/// Ref: <https://mpv.io/manual/stable/#command-interface-mpv-event-end-file>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum EventEndFileReason {
+    /// The file has ended. This can (but doesn't have to) include
+    /// incomplete files or broken network connections under circumstances.
     Eof,
+
+    /// Playback was ended by a command.
     Stop,
+
+    /// Playback was ended by sending the quit command.
     Quit,
+
+    /// An error happened. In this case, an `error` field is present with the error string.
     Error,
+
+    /// Happens with playlists and similar. For details, see
+    /// [`MPV_END_FILE_REASON_REDIRECT`](https://github.com/mpv-player/mpv/blob/72efbfd009a2b3259055133d74b88c81b1115ae1/include/mpv/client.h#L1493)
+    /// in the C API.
     Redirect,
+
+    /// Unknown. Normally doesn't happen, unless the Lua API is out of sync
+    /// with the C API. (Likewise, it could happen that your script gets reason
+    /// strings that did not exist yet at the time your script was written.)
     Unknown,
+
+    /// A catch-all enum variant in case `mpvipc-async` has not implemented the
+    /// returned error yet.
     Unimplemented(String),
 }
 
@@ -34,6 +56,11 @@ impl FromStr for EventEndFileReason {
     }
 }
 
+/// The log level of a log message event.
+///
+/// Ref:
+/// - <https://mpv.io/manual/stable/#command-interface-mpv-event-log-message>
+/// - <https://mpv.io/manual/stable/#mp-msg-functions>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum EventLogMessageLevel {
@@ -44,6 +71,9 @@ pub enum EventLogMessageLevel {
     Verbose,
     Debug,
     Trace,
+
+    /// A catch-all enum variant in case `mpvipc-async` has not implemented the
+    /// returned log-level yet.
     Unimplemented(String),
 }
 
