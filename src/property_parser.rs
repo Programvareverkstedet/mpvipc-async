@@ -46,11 +46,15 @@ pub enum Property {
     },
 }
 
+/// Loop mode used by mpv for files and playlists.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum LoopProperty {
+    /// Loop N times
     N(usize),
+    /// Loop infinitely
     Inf,
+    /// Disable looping
     No,
 }
 
