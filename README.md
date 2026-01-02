@@ -35,3 +35,5 @@ async fn main() -> Result<(), MpvError> {
     mpv.set_property("pause", !paused).await.expect("Error pausing");
 }
 ```
+
+[You can find more examples in the `examples` directory](./examples)
