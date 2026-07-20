@@ -137,7 +137,7 @@ impl MpvIpc {
                 }
             }
             Err(e) => {
-                log::trace!("Error parsing event, ignoring:\n  {:?}\n  {:?}", &event, e);
+                log::trace!("Error parsing event, ignoring:\n  {:?}\n  {:?}", event, e);
             }
         }
     }
