@@ -8,7 +8,7 @@ RUST_LOG=mpvipc=trace RUSTFLAGS="-Cinstrument-coverage" LLVM_PROFILE_FILE="targe
 echo "Generating coverage report"
 grcov \
   --source-dir . \
-  --binary-path ./target/release/deps/ \
+  --binary-path ./target/release/ \
   --excl-start 'mod test* \{' \
   --ignore 'tests/*' \
   --ignore "*test.rs" \
