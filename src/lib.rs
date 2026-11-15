@@ -7,6 +7,7 @@ mod highlevel_api_extension;
 mod ipc;
 mod message_parser;
 mod property_parser;
+mod ticket_pool;
 
 pub use core_api::*;
 pub use error::*;
